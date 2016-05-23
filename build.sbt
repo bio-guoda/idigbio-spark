@@ -15,7 +15,7 @@ libraryDependencies ++= Seq(
   "com.github.scopt" %% "scopt" % "3.3.0",
   "com.databricks" % "spark-csv_2.10" % "1.3.0",
   "io.spray" %%  "spray-json" % "1.3.2",
-  "org.globalnames" %% "gnparser" % "0.2.0" excludeAll(
+  "org.globalnames" %% "gnparser" % "0.3.0" excludeAll(
     ExclusionRule(organization = "org.scala-lang")),
   "org.locationtech.spatial4j" % "spatial4j" % "0.6",
   "com.vividsolutions" % "jts-core" % "1.14.0",
