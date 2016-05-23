@@ -1,7 +1,7 @@
 # idigbio-spark
 Links iDigBio records to [GenBank](http://www.ncbi.nlm.nih.gov/genbank/), [Global Names](http://globalnames.org) and possibly other open bioinformatics resources. The purpose of this project is to **link specimen records to external systems like GenBank and Global Names at scale** by using [Apache's Spark](http://spark.apache.org) a distributed data processing tool. 
 
-[![Build Status](https://travis-ci.org/idigbio-api-hackathon/idigbio-spark.svg?branch=master)](https://travis-ci.org/idigbio-api-hackathon/idigbio-spark)
+[![Build Status](https://travis-ci.org/bio-guoda/idigbio-spark.svg?branch=master)](https://travis-ci.org/bio-guoda/idigbio-spark)
 
 # prerequisites
  * Apache Spark v1.3.1 installed at ```$SPARK_HOME```
