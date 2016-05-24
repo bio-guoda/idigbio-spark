@@ -14,13 +14,13 @@ import DwC.Meta
 import scala.IllegalArgumentException
 
 trait DwCHandler {
-  def toDF(metas: Seq[String]): Seq[(String, DataFrame)]
+  def toDF2(sqlCtx: SQLContext, metas: Seq[String]): Seq[(String, DataFrame)]
 }
 
 trait DwCSparkHandler extends DwCHandler {
-  implicit var sqlContext: SQLContext
 
-  def toDF(metaLocators: Seq[String]): Seq[(String, DataFrame)] = {
+
+  def toDF2(sqlCtx: SQLContext, metaLocators: Seq[String]): Seq[(String, DataFrame)] = {
     val metaURLs: Seq[URL] = metaLocators map { meta => new URL(meta) }
     val metas: Seq[DwC.Meta] = metaURLs flatMap { metaURL: URL => DwC.readMeta(metaURL) }
     val metaDFTuples = metas map { meta: DwC.Meta =>
@@ -29,7 +29,7 @@ trait DwCSparkHandler extends DwCHandler {
       })
       meta.fileLocations map { fileLocation =>
         println(s"attempting to load [$fileLocation]...")
-        val df = sqlContext.read.format("com.databricks.spark.csv").
+        val df = sqlCtx.read.format("com.databricks.spark.csv").
           option("delimiter", meta.delimiter).
           option("quote", meta.quote).
           schema(schema).
@@ -58,7 +58,7 @@ object DarwinCoreToParquet extends DwCSparkHandler {
           println(s"attempting to process dwc meta [$archive]")
         }
 
-        for ((sourceLocation, df) <- toDF(config.archives)) {
+        for ((sourceLocation, df) <- toDF2(sqlCtx = sqlContext, metaLocators = config.archives)) {
           df.write.format("parquet").save(sourceLocation + ".parquet")
         }
       }

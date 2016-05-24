@@ -14,9 +14,8 @@ import DwC.Meta
 import scala.IllegalArgumentException
 
 trait LinkIdentifiers {
-  implicit var sqlContext: SQLContext
 
-  def toLinkDF(occurrenceDF: DataFrame, columnNames: List[String]): DataFrame = {
+  def toLinkDF(sqlContext: SQLContext, occurrenceDF: DataFrame, columnNames: List[String]): DataFrame = {
     def escapeColumnName(name: String): String = {
       Seq("`", name, "`").mkString("")
     }
@@ -60,7 +59,7 @@ object LinkIdentifiersJob extends LinkIdentifiers {
           println(s"parquet file at [$archive] processing...")
           val df = sqlContext.read.format("parquet").load(archive)
           val coreIdName: String = df.columns.head
-          val linkDF = toLinkDF(df, coreIdName :: IdentifierUtil.dwcIdColumns)
+          val linkDF = toLinkDF(sqlContext, df, coreIdName :: IdentifierUtil.dwcIdColumns)
           println(s"parquet file at [$archive] processed.")
           linkDF
         }

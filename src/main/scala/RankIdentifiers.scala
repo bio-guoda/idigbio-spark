@@ -15,7 +15,6 @@ import DwC.Meta
 import scala.IllegalArgumentException
 
 trait RankIdentifiers {
-  implicit var sqlContext: SQLContext
 
   def toRankDF(linkDFs: Seq[RDD[Row]]): RDD[(Double, String)] = {
     val links = linkDFs.reduce((res, linkDF) => res.union(linkDF))

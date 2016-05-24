@@ -1,44 +1,28 @@
 import java.io.IOException
 
+import OccurrenceCollectionGenerator.OccurrenceSelector
 import au.com.bytecode.opencsv.CSVParser
 import com.datastax.spark.connector._
 import com.datastax.spark.connector.cql.CassandraConnector
+import org.apache.spark.SparkConf
 import org.apache.spark.rdd.RDD
 import org.apache.spark.{SparkConf, SparkContext}
 import org.apache.spark.sql.{Row, DataFrame, SQLContext}
 import org.apache.spark.sql.functions._
 import org.scalatest._
+import com.holdenkarau.spark.testing.SharedSparkContext
 
 
-object SparkContextSingleton {
-  @transient private var instance: SparkContext = _
+trait TestSparkContext extends FlatSpec with Matchers with BeforeAndAfter with SharedSparkContext {
 
-  def getInstance(): SparkContext = {
-    if (instance == null) {
-      val conf = new SparkConf()
-        .set("spark.cassandra.connection.host", "localhost")
-        .setMaster("local[2]")
-        .setAppName("test-spark")
-      instance = new SparkContext(conf)
-    }
-    instance
-  }
-}
+  override val conf = new SparkConf().
+    setMaster("local[*]").
+    setAppName("test").
+    set("spark.cassandra.connection.host", "localhost").
+    set("spark.ui.enabled", "false").
+    set("spark.app.id", appID)
 
-trait TestSparkContext extends FlatSpec with Matchers with BeforeAndAfterAll {
-  implicit var sc: SparkContext = _
-  implicit var sqlContext: SQLContext = _
 
-  override def beforeAll() = {
-    sc = SparkContextSingleton.getInstance()
-    sqlContext = SQLContextSingleton.getInstance(sc)
-  }
-
-  override def afterAll() = {
-    if (sc != null) {
-      sc.stop()
-    }
-  }
 }
 
 class SparkJobs$Test extends TestSparkContext with RankIdentifiers with LinkIdentifiers with DwCSparkHandler {
@@ -202,65 +186,61 @@ class SparkJobs$Test extends TestSparkContext with RankIdentifiers with LinkIden
 
 
   "concatenating rows" should "be saved to cassandra" in {
+    prepareCassandra
+    val otherLines = Seq(("Mammalia|Insecta", "LINE(1 2 3 4)", "bodyMass greaterThan 19 g", "checklist item", 1)
+      , ("Mammalia|Insecta", "LINE(1 2 3 4)", "bodyMass greaterThan 19 g", "other checklist item", 1))
+
+    sc.parallelize(otherLines).saveToCassandra("effechecka", "checklist", CassandraUtil.checklistColumns)
+
+    sc.parallelize(Seq(("bla|bla", "something", "trait|anotherTrait", "running", 123L))).saveToCassandra("effechecka", "checklist_registry", CassandraUtil.checklistRegistryColumns)
+  }
+
+  def prepareCassandra = {
     try {
       CassandraConnector(sc.getConf).withSessionDo { session =>
         session.execute(CassandraUtil.checklistKeySpaceCreate)
         session.execute(CassandraUtil.checklistTableCreate)
         session.execute(CassandraUtil.checklistRegistryTableCreate)
-        session.execute(s"TRUNCATE effechecka.checklist")
-      }
-      val otherLines = Seq(("Mammalia|Insecta", "LINE(1 2 3 4)", "bodyMass greaterThan 19 g", "checklist item", 1)
-        , ("Mammalia|Insecta", "LINE(1 2 3 4)", "bodyMass greaterThan 19 g", "other checklist item", 1))
-
-      sc.parallelize(otherLines)
-        .saveToCassandra("effechecka", "checklist", CassandraUtil.checklistColumns)
-
-      sc.parallelize(Seq(("bla|bla", "something", "trait|anotherTrait", "running", 123L)))
-        .saveToCassandra("effechecka", "checklist_registry", CassandraUtil.checklistRegistryColumns)
-    } catch {
-      case e: IOException => {
-        fail("failed to connect to cassandra. do you have it running?", e)
-      }
-    }
-  }
-
-  "occurrence collection" should "be saved to cassandra" in {
-    try {
-      CassandraConnector(sc.getConf).withSessionDo { session =>
-        session.execute(CassandraUtil.checklistKeySpaceCreate)
         session.execute(CassandraUtil.occurrenceCollectionTableCreate)
         session.execute(CassandraUtil.occurrenceCollectionRegistryTableCreate)
-        session.execute(s"TRUNCATE effechecka.occurrence_collection")
+        session.execute(s"TRUNCATE effechecka.checklist")
       }
-      val otherLines = Seq(("some taxonselector", "some wktstring", "some traitselector", "Animalia|Aves", "11.4", "12.2", "2013-05-03", 123L, 124L, 635829854630400000L, "http://archive2"))
-
-      sc.parallelize(otherLines)
-        .saveToCassandra("effechecka", "occurrence_collection", CassandraUtil.occurrenceCollectionColumns)
-
-      sc.parallelize(Seq(("bla|bla", "something", "trait|anotherTrait", "running", 123L)))
-        .saveToCassandra("effechecka", "occurrence_collection_registry", CassandraUtil.occurrenceCollectionRegistryColumns)
     } catch {
       case e: IOException => {
         fail("failed to connect to cassandra. do you have it running?", e)
       }
     }
   }
+
+  def insertSomeSearchResults() = {
+    prepareCassandra
+
+    val otherLines = Seq(
+      ("some taxonselector", "some wktstring", "some traitselector", "Animalia|Aves", "11.4", "12.2", "2013-05-03", 123L, 124L, 635829854630400000L, "http://archive2")
+      , ("some taxonselector", "some wktstring", "some traitselector", "Animalia|Aves", "11.4", "12.2", "2013-05-03", 123L, 125L, 635829854630400000L, "http://archive2")
+      , ("some other taxonselector", "some wktstring", "some traitselector", "Animalia|Aves", "11.4", "12.2", "2013-05-03", 123L, 125L, 635829854630400000L, "http://archive2")
+    )
+    sc.parallelize(otherLines).saveToCassandra("effechecka", "occurrence_collection", CassandraUtil.occurrenceCollectionColumns)
+  }
+
   "linking idigbio identifier columns" should "produce a list of connected triples" in {
+    val sqlContext = new SQLContext(sc)
 
     val idigbio = readDwC.last
     idigbio._2.count() should be(9)
 
-    val linkDF: DataFrame = toLinkDF(idigbio._2, IdentifierUtil.idigbioColumns)
+    val linkDF: DataFrame = toLinkDF(sqlContext, idigbio._2, IdentifierUtil.idigbioColumns)
     val collectedLinks = linkDF.collect()
     collectedLinks should contain(Row("008a28ae-9197-4561-8412-3596fe1984f4", "refers", "KUMIP"))
     collectedLinks should not contain Row("000b9be5-1cf6-4016-b3cb-7b4c3f4cabcb", "refers", "")
   }
 
   "linking gbif identifier columns" should "produce a list of connected triples" in {
+    val sqlContext = new SQLContext(sc)
     val gbif = readDwC.head
     gbif._2.count() should be(9)
 
-    val linkDF: DataFrame = toLinkDF(gbif._2, IdentifierUtil.gbifColumns)
+    val linkDF: DataFrame = toLinkDF(sqlContext, gbif._2, IdentifierUtil.gbifColumns)
     val collectedLinks = linkDF.collect()
     collectedLinks should contain(Row("904605700", "refers", "68BAECEE-E995-4F11-B7B5-88D252879345/141"))
   }
@@ -281,6 +261,8 @@ class SparkJobs$Test extends TestSparkContext with RankIdentifiers with LinkIden
   }
 
   "apply first added aggregate" should "select a few occurrences" in {
+    val sqlContext = new SQLContext(sc)
+
     val df = readDwCNoSource.head._2
 
     val gbif2010 = df.withColumn("date", lit("20100101")).withColumn("source", lit("gbif"))
@@ -349,10 +331,11 @@ class SparkJobs$Test extends TestSparkContext with RankIdentifiers with LinkIden
   }
 
   def readDwCNoSource: Seq[(String, DataFrame)] = {
+    val sqlContext = new SQLContext(sc)
     val metas = List("/gbif/meta.xml", "/idigbio/meta.xml") map {
       getClass.getResource
     }
-    toDF(metas map {
+    toDF2(sqlContext, metas map {
       _.toString
     })
   }
@@ -377,6 +360,54 @@ class SparkJobs$Test extends TestSparkContext with RankIdentifiers with LinkIden
     top10 should contain((0.66, "dst1"))
     top10 should contain((0.15, "src1"))
     top10 should contain((0.15, "src6"))
+  }
+
+  "occurrence collection" should "be saved to cassandra" in {
+    val sqlContext = new SQLContext(sc)
+
+    try {
+      CassandraConnector(sc.getConf).withSessionDo { session =>
+        session.execute(s"DROP TABLE IF EXISTS effechecka.occurrence_collection")
+        session.execute(s"DROP TABLE IF EXISTS effechecka.occurrence_search")
+        session.execute(s"DROP TABLE IF EXISTS effechecka.occurrence_first_added_search")
+        session.execute(s"DROP TABLE IF EXISTS effechecka.occurrence_collection_registry")
+      }
+    } catch {
+      case e: IOException => {
+        fail("failed to connect to cassandra. do you have it running?", e)
+      }
+    }
+    val otherLines = Seq(("11.4", "12.2", "Animalia|Aves", "some id", 555L, "some data source", 123L, 124L))
+
+    OccurrenceCollectionGenerator.saveCollectionToCassandra(sc,
+      occurrenceSelector = OccurrenceSelector("some taxonselector", "some wktstring", "some traitselector"),
+      occurrenceCollection = sc.parallelize(otherLines))
+
+    val df = sqlContext
+      .read
+      .format("org.apache.spark.sql.cassandra")
+      .options(Map("table" -> "occurrence_collection", "keyspace" -> "effechecka"))
+      .load()
+
+    df.count() should be(1)
+
+    val searches = sqlContext
+      .read
+      .format("org.apache.spark.sql.cassandra")
+      .options(Map("table" -> "occurrence_search", "keyspace" -> "effechecka"))
+      .load()
+
+    searches.first should be(Row("some data source", "some id", "some taxonselector", "some wktstring", "some traitselector"))
+
+    val searchesFirstAdded = sqlContext
+      .read
+      .format("org.apache.spark.sql.cassandra")
+      .options(Map("table" -> "occurrence_first_added_search", "keyspace" -> "effechecka"))
+      .load()
+
+    searchesFirstAdded.first.getAs[String]("source") should be("some data source")
+    searchesFirstAdded.first.getAs[String]("id") should be("some id")
+
   }
 
 }

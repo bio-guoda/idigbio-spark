@@ -1,15 +1,15 @@
 import java.util
 
 import org.apache.spark.rdd.RDD
-import org.apache.spark.scheduler._
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.{DataFrame, SQLContext}
 import org.apache.spark.{SparkConf, SparkContext}
 import com.datastax.spark.connector.cql.CassandraConnector
 import com.datastax.spark.connector._
-import org.joda.time.{Interval, DateTime, DateTimeZone}
 
 object OccurrenceCollectionGenerator {
+
+  case class OccurrenceSelector(taxonSelector: String, wktString: String, traitSelector: String)
 
   def generateCollection(config: ChecklistConf) {
     val occurrenceFile = config.occurrenceFiles.head
@@ -42,23 +42,61 @@ object OccurrenceCollectionGenerator {
     val traitSelectorString: String = traitSelectors.mkString("|")
 
     config.outputFormat.trim match {
-      case "cassandra" => {
-        CassandraConnector(sc.getConf).withSessionDo { session =>
-          session.execute(CassandraUtil.checklistKeySpaceCreate)
-          session.execute(CassandraUtil.occurrenceCollectionRegistryTableCreate)
-          session.execute(CassandraUtil.occurrenceCollectionTableCreate)
-        }
-        occurrenceCollection.map(item => (taxonSelectorString, wktString, traitSelectorString, item._3, item._1, item._2, item._7, item._8, item._4, item._5, item._6))
-          .saveToCassandra("effechecka", "occurrence_collection", CassandraUtil.occurrenceCollectionColumns)
-
-        sc.parallelize(Seq((taxonSelectorString, wktString, traitSelectorString, "ready", occurrenceCollection.count())))
-          .saveToCassandra("effechecka", "occurrence_collection_registry", CassandraUtil.occurrenceCollectionRegistryColumns)
-      }
+      case "cassandra" =>
+        saveCollectionToCassandra(sc, OccurrenceSelector(taxonSelectorString, wktString, traitSelectorString), occurrenceCollection)
 
       case _ => occurrenceCollection.map(item => List(taxonSelectorString, wktString, traitSelectorString, item._1, item._2).mkString(","))
         .saveAsTextFile(occurrenceFile + ".occurrences" + System.currentTimeMillis)
     }
 
+  }
+
+  def saveCollectionToCassandra(sc: SparkContext, occurrenceSelector: OccurrenceSelector, occurrenceCollection: RDD[(String, String, String, String, Long, String, Long, Long)]): Unit = {
+    CassandraConnector(sc.getConf).withSessionDo { session =>
+      session.execute(CassandraUtil.checklistKeySpaceCreate)
+      session.execute(CassandraUtil.occurrenceCollectionRegistryTableCreate)
+      session.execute(CassandraUtil.occurrenceCollectionTableCreate)
+      session.execute(CassandraUtil.occurrenceSearchTableCreate)
+      session.execute(CassandraUtil.occurrenceFirstAddedSearchTableCreate)
+    }
+
+    val taxonSelectorString: String = occurrenceSelector.taxonSelector
+    val wktString: String = occurrenceSelector.wktString
+    val traitSelectorString: String = occurrenceSelector.traitSelector
+
+    occurrenceCollection.map(item => {
+      val lat: String = item._1
+      val lng: String = item._2
+      val taxon: String = item._3
+      val id: String = item._4
+      val added: Long = item._5
+      val source: String = item._6
+      val start: Long = item._7
+      val end: Long = item._8
+
+      (taxonSelectorString, wktString, traitSelectorString, taxon, lat, lng, start, end, id, added, source)
+    })
+      .saveToCassandra("effechecka", "occurrence_collection", CassandraUtil.occurrenceCollectionColumns)
+
+    occurrenceCollection.map(item => {
+      val id: String = item._4
+      val source: String = item._6
+
+      (source, id, taxonSelectorString, wktString, traitSelectorString)
+    })
+      .saveToCassandra("effechecka", "occurrence_search", CassandraUtil.occurrenceSearchColumns)
+
+    occurrenceCollection.map(item => {
+      val id: String = item._4
+      val added: Long = item._5
+      val source: String = item._6
+
+      (source, added, id)
+    })
+      .saveToCassandra("effechecka", "occurrence_first_added_search", CassandraUtil.occurrenceFirstAddedSearchColumns)
+
+    sc.parallelize(Seq((taxonSelectorString, wktString, traitSelectorString, "ready", occurrenceCollection.count())))
+      .saveToCassandra("effechecka", "occurrence_collection_registry", CassandraUtil.occurrenceCollectionRegistryColumns)
   }
 
   def main(args: Array[String]) {

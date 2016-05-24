@@ -1,6 +1,6 @@
 name := "iDigBio-LD"
 
-version := "1.5.1"
+version := "1.5.2"
 
 scalaVersion := "2.10.5"
 
@@ -29,9 +29,12 @@ libraryDependencies ++= Seq(
     ExclusionRule("org.slf4j", "slf4j-api"),
     ExclusionRule("com.google.guava", "guava")),
 
-  "org.scalatest" %% "scalatest" % "2.2.5" % "test"
+  "org.scalatest" %% "scalatest" % "2.2.5" % "test",
+  "com.holdenkarau" %% "spark-testing-base" % "1.6.1_0.3.3" % "test"
 )
 
 test in assembly := {}
+
+javaOptions ++= Seq("-Xms512M", "-Xmx2048M", "-XX:MaxPermSize=2048M", "-XX:+CMSClassUnloadingEnabled")
 
 resolvers += Resolver.sonatypeRepo("public")
