@@ -31,6 +31,16 @@ object DateUtil {
     }
   }
 
+  def startEndDate(dateString: String): (Long, Long) = {
+    if (dateString.contains("/")) {
+      val toInterval1: Interval = toInterval(dateString)
+      (toInterval1.getStartMillis, toInterval1.getEndMillis)
+    } else {
+      val time: Long = toUnixTime(dateString)
+      (time, time)
+    }
+  }
+
   def toInterval(dateString: String): Interval = {
     new Interval(dateString, ISOChronology.getInstance(DateTimeZone.UTC))
   }

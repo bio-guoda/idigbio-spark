@@ -8,12 +8,21 @@ import com.datastax.spark.connector.cql.CassandraConnector
 import com.datastax.spark.connector._
 
 case class Occurrence(lat: String,
-                          lng: String,
-                          taxonPath: String,
-                          eventDate: String,
-                          id: String,
-                          sourceDate: String,
-                          source: String)
+                      lng: String,
+                      taxonPath: String,
+                      eventDate: String,
+                      id: String,
+                      sourceDate: String,
+                      source: String)
+
+case class OccurrenceExt(lat: String,
+                         lng: String,
+                         taxonPath: String,
+                         id: String,
+                         pdate: Long,
+                         psource: String,
+                         start: Long,
+                         end: Long)
 
 
 object OccurrenceCollectionGenerator {
@@ -206,11 +215,7 @@ object OccurrenceCollectionBuilder {
 
 
   def selectOccurrences(sqlContext: SQLContext, df: DataFrame, taxa: Seq[String], wkt: String): DataFrame = {
-    import org.apache.spark.sql.functions.udf
     import sqlContext.implicits._
-    val startDateOf = udf(DateUtil.startDate(_: String))
-    val basicDateOf = udf(DateUtil.basicDateToUnixTime(_: String))
-    val endDateOf = udf(DateUtil.endDate(_: String))
 
     val taxonPathTerm: String = "taxonPath"
     val withPath = df.select(availableTerms(df).map(col): _*)
@@ -219,12 +224,12 @@ object OccurrenceCollectionBuilder {
     val occColumns = locationTerms ::: List(taxonPathTerm) ::: remainingTerms
 
     val occDS = withPath.select(occColumns.map(col): _*)
-          .withColumnRenamed("http://rs.tdwg.org/dwc/terms/decimalLatitude", "lat")
-          .withColumnRenamed("http://rs.tdwg.org/dwc/terms/decimalLongitude", "lng")
-          .withColumnRenamed("http://rs.tdwg.org/dwc/terms/eventDate", "eventDate")
-          .withColumnRenamed("http://rs.tdwg.org/dwc/terms/occurrenceID", "id")
-          .withColumnRenamed("date", "sourceDate")
-          .as[Occurrence]
+      .withColumnRenamed("http://rs.tdwg.org/dwc/terms/decimalLatitude", "lat")
+      .withColumnRenamed("http://rs.tdwg.org/dwc/terms/decimalLongitude", "lng")
+      .withColumnRenamed("http://rs.tdwg.org/dwc/terms/eventDate", "eventDate")
+      .withColumnRenamed("http://rs.tdwg.org/dwc/terms/occurrenceID", "id")
+      .withColumnRenamed("date", "sourceDate")
+      .as[Occurrence]
 
     occDS
       .filter(x => DateUtil.nonEmpty(x.id))
@@ -232,14 +237,18 @@ object OccurrenceCollectionBuilder {
       .filter(x => DateUtil.validDate(x.eventDate))
       .filter(x => taxa.intersect(x.taxonPath.split("\\|")).nonEmpty)
       .filter(x => SpatialFilter.locatedInLatLng(wkt, Seq(x.lat, x.lng)))
+      .transform[OccurrenceExt](ds => ds.map(occ => {
+      val startEnd = DateUtil.startEndDate(occ.eventDate)
+      OccurrenceExt(
+        lat = occ.lat, lng = occ.lng,
+        taxonPath = occ.taxonPath,
+        start = startEnd._1,
+        end = startEnd._2,
+        id = occ.id,
+        pdate = DateUtil.basicDateToUnixTime(occ.sourceDate),
+        psource = occ.source)
+    }))
       .toDF
-      .withColumn("pdate", basicDateOf(col("sourceDate")))
-      .withColumn("psource", col("source"))
-      .withColumn("start", startDateOf(col("eventDate")))
-      .withColumn("end", endDateOf(col("eventDate")))
-      .drop(col("eventDate"))
-      .drop(col("sourceDate"))
-      .drop(col("source"))
   }
 
   def includeFirstSeenOccurrencesOnly(occurrences: DataFrame, firstSeenOccurrences: DataFrame): DataFrame = {
