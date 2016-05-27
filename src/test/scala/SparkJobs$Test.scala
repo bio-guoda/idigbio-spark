@@ -247,13 +247,13 @@ class SparkJobs$Test extends TestSparkContext with RankIdentifiers with LinkIden
 
   "apply occurrence filter to gbif sample" should "select a few occurrences" in {
     val gbif = readDwC.head._2
-    val collection: RDD[(String, String, String, String, Long, String, Long, Long)] = OccurrenceCollectionBuilder
+    val collection = OccurrenceCollectionBuilder
       .buildOccurrenceCollection(sc, gbif, "ENVELOPE(4,5,52,50)", Seq("Plantae"))
 
     collection.count() should be(9)
-    collection.first()._1 should be("51.94536")
+    collection.first().lat should be("51.94536")
 
-    val anotherCollection: RDD[(String, String, String, String, Long, String, Long, Long)] = OccurrenceCollectionBuilder
+    val anotherCollection = OccurrenceCollectionBuilder
       .buildOccurrenceCollection(sc, gbif, "ENVELOPE(4,5,52,50)", Seq("Dactylis"))
 
     anotherCollection.count() should be(1)
@@ -293,13 +293,13 @@ class SparkJobs$Test extends TestSparkContext with RankIdentifiers with LinkIden
 
   "apply occurrence filter to idigbio sample" should "select a few occurrences" in {
     val idigbio = readDwC.last._2
-    val collection: RDD[(String, String, String, String, Long, String, Long, Long)] = OccurrenceCollectionBuilder
+    val collection = OccurrenceCollectionBuilder
       .buildOccurrenceCollection(sc, idigbio, "ENVELOPE(-100,-90,40,30)", Seq("Animalia"))
 
     collection.count() should be(1)
-    collection.first()._1 should be("33.4519400")
+    collection.first().lat should be("33.4519400")
 
-    val anotherCollection: RDD[(String, String, String, String, Long, String, Long, Long)] = OccurrenceCollectionBuilder
+    val anotherCollection = OccurrenceCollectionBuilder
       .buildOccurrenceCollection(sc, idigbio, "ENVELOPE(-100,-90,40,30)", Seq("Crurithyris"))
 
     anotherCollection.count() should be(1)
@@ -364,6 +364,7 @@ class SparkJobs$Test extends TestSparkContext with RankIdentifiers with LinkIden
 
   "occurrence collection" should "be saved to cassandra" in {
     val sqlContext = new SQLContext(sc)
+    import sqlContext.implicits._
 
     try {
       CassandraConnector(sc.getConf).withSessionDo { session =>
@@ -377,11 +378,11 @@ class SparkJobs$Test extends TestSparkContext with RankIdentifiers with LinkIden
         fail("failed to connect to cassandra. do you have it running?", e)
       }
     }
-    val otherLines = Seq(("11.4", "12.2", "Animalia|Aves", "some id", 555L, "some data source", 123L, 124L))
+    val otherLines = Seq(OccurrenceExt("11.4", "12.2", "Animalia|Aves", "some id", 555L, "some data source", 123L, 124L))
 
     OccurrenceCollectionGenerator.saveCollectionToCassandra(sc,
       occurrenceSelector = OccurrenceSelector("some taxonselector", "some wktstring", "some traitselector"),
-      occurrenceCollection = sc.parallelize(otherLines))
+      occurrenceCollection = sqlContext.createDataset(otherLines))
 
     val df = sqlContext
       .read

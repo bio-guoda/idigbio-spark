@@ -2,7 +2,7 @@ import java.util
 
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.functions._
-import org.apache.spark.sql.{DataFrame, SQLContext}
+import org.apache.spark.sql.{Dataset, DataFrame, SQLContext}
 import org.apache.spark.{SparkConf, SparkContext}
 import com.datastax.spark.connector.cql.CassandraConnector
 import com.datastax.spark.connector._
@@ -63,13 +63,16 @@ object OccurrenceCollectionGenerator {
       case "cassandra" =>
         saveCollectionToCassandra(sc, OccurrenceSelector(taxonSelectorString, wktString, traitSelectorString), occurrenceCollection)
 
-      case _ => occurrenceCollection.map(item => List(taxonSelectorString, wktString, traitSelectorString, item._1, item._2).mkString(","))
-        .saveAsTextFile(occurrenceFile + ".occurrences" + System.currentTimeMillis)
+      case _ =>
+        println(s"unsupported output format [${config.outputFormat}]")
     }
 
   }
 
-  def saveCollectionToCassandra(sc: SparkContext, occurrenceSelector: OccurrenceSelector, occurrenceCollection: RDD[(String, String, String, String, Long, String, Long, Long)]): Unit = {
+  def saveCollectionToCassandra(sc: SparkContext, occurrenceSelector: OccurrenceSelector, occurrenceCollection: Dataset[OccurrenceExt]): Unit = {
+    val sqlContext: SQLContext = SQLContextSingleton.getInstance(sc)
+    import sqlContext.implicits._
+
     CassandraConnector(sc.getConf).withSessionDo { session =>
       session.execute(CassandraUtil.checklistKeySpaceCreate)
       session.execute(CassandraUtil.occurrenceCollectionRegistryTableCreate)
@@ -83,35 +86,20 @@ object OccurrenceCollectionGenerator {
     val traitSelectorString: String = occurrenceSelector.traitSelector
 
     occurrenceCollection.map(item => {
-      val lat: String = item._1
-      val lng: String = item._2
-      val taxon: String = item._3
-      val id: String = item._4
-      val added: Long = item._5
-      val source: String = item._6
-      val start: Long = item._7
-      val end: Long = item._8
-
-      (taxonSelectorString, wktString, traitSelectorString, taxon, lat, lng, start, end, id, added, source)
-    })
-      .saveToCassandra("effechecka", "occurrence_collection", CassandraUtil.occurrenceCollectionColumns)
+      (taxonSelectorString, wktString, traitSelectorString,
+        item.taxonPath, item.lat, item.lng,
+        item.start, item.end,
+        item.id,
+        item.pdate, item.psource)
+    }).rdd.saveToCassandra("effechecka", "occurrence_collection", CassandraUtil.occurrenceCollectionColumns)
 
     occurrenceCollection.map(item => {
-      val id: String = item._4
-      val source: String = item._6
-
-      (source, id, taxonSelectorString, wktString, traitSelectorString)
-    })
-      .saveToCassandra("effechecka", "occurrence_search", CassandraUtil.occurrenceSearchColumns)
+      (item.psource, item.id, taxonSelectorString, wktString, traitSelectorString)
+    }).rdd.saveToCassandra("effechecka", "occurrence_search", CassandraUtil.occurrenceSearchColumns)
 
     occurrenceCollection.map(item => {
-      val id: String = item._4
-      val added: Long = item._5
-      val source: String = item._6
-
-      (source, added, id)
-    })
-      .saveToCassandra("effechecka", "occurrence_first_added_search", CassandraUtil.occurrenceFirstAddedSearchColumns)
+      (item.psource, item.pdate, item.id)
+    }).rdd.saveToCassandra("effechecka", "occurrence_first_added_search", CassandraUtil.occurrenceFirstAddedSearchColumns)
 
     sc.parallelize(Seq((taxonSelectorString, wktString, traitSelectorString, "ready", occurrenceCollection.count())))
       .saveToCassandra("effechecka", "occurrence_collection_registry", CassandraUtil.occurrenceCollectionRegistryColumns)
@@ -186,24 +174,23 @@ object OccurrenceCollectionBuilder {
       && availableTaxonTerms.nonEmpty)
   }
 
-  def buildOccurrenceCollection(sc: SparkContext, df: DataFrame, wkt: String, taxa: Seq[String]): RDD[(String, String, String, String, Long, String, Long, Long)] = {
+  def buildOccurrenceCollection(sc: SparkContext, df: DataFrame, wkt: String, taxa: Seq[String]): Dataset[OccurrenceExt] = {
     collectOccurrences(sc, selectOccurrences, df, wkt, taxa)
   }
 
-  def buildOccurrenceCollectionFirstSeenOnly(sc: SparkContext, df: DataFrame, wkt: String, taxa: Seq[String]): RDD[(String, String, String, String, Long, String, Long, Long)] = {
+  def buildOccurrenceCollectionFirstSeenOnly(sc: SparkContext, df: DataFrame, wkt: String, taxa: Seq[String]): Dataset[OccurrenceExt] = {
     collectOccurrences(sc, selectOccurrencesFirstSeenOnly, df, wkt, taxa)
   }
 
-  def collectOccurrences(sc: SparkContext, builder: (SQLContext, DataFrame, Seq[String], String) => DataFrame, df: DataFrame, wkt: String, taxa: Seq[String]): RDD[(String, String, String, String, Long, String, Long, Long)] = {
+  def collectOccurrences(sc: SparkContext, builder: (SQLContext, DataFrame, Seq[String], String) => DataFrame, df: DataFrame, wkt: String, taxa: Seq[String]): Dataset[OccurrenceExt] = {
     val sqlContext: SQLContext = SQLContextSingleton.getInstance(sc)
     import sqlContext.implicits._
 
     if (mandatoryTermsAvailable(df)) {
       builder(sqlContext, df, taxa, wkt)
-        .as[(String, String, String, String, Long, String, Long, Long)]
-        .rdd
+        .as[OccurrenceExt]
     } else {
-      sc.emptyRDD[(String, String, String, String, Long, String, Long, Long)]
+      sqlContext.emptyDataFrame.as[OccurrenceExt]
     }
   }
 
