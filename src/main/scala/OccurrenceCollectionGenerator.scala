@@ -44,8 +44,6 @@ object OccurrenceCollectionGenerator {
     val sc = new SparkContext(conf)
     sc.addSparkListener(new OccurrenceCollectionListener(MonitorSelector(taxonSelectorString, wktString, config.traitSelector.mkString("|"))))
 
-    val sqlContext = SQLContextSingleton.getInstance(sc)
-    val occurrences: DataFrame = sqlContext.read.format("parquet").load(occurrenceFile)
 
     val occurrenceSelector = {
       if (config.firstSeenOnly) {
@@ -55,8 +53,12 @@ object OccurrenceCollectionGenerator {
       }
     }
 
+    val sqlContext = SQLContextSingleton.getInstance(sc)
+    val occurrences: DataFrame = sqlContext.read.format("parquet").load(occurrenceFile)
+    val ds: Dataset[Occurrence] = OccurrenceCollectionBuilder.toOccurrenceDS(sqlContext, occurrences)
+
     val occurrenceCollection = OccurrenceCollectionBuilder
-      .collectOccurrences(sc, occurrenceSelector, occurrences, wktString, taxonSelector)
+      .collectOccurrences(sc, occurrenceSelector, ds, wktString, taxonSelector)
 
     val traitSelectors = config.traitSelector
     val traitSelectorString: String = traitSelectors.mkString("|")
@@ -176,50 +178,30 @@ object OccurrenceCollectionBuilder {
       && availableTaxonTerms.nonEmpty)
   }
 
-  def buildOccurrenceCollection(sc: SparkContext, df: DataFrame, wkt: String, taxa: Seq[String]): Dataset[OccurrenceExt] = {
+  def buildOccurrenceCollection(sc: SparkContext, df: Dataset[Occurrence], wkt: String, taxa: Seq[String]): Dataset[OccurrenceExt] = {
     collectOccurrences(sc, selectOccurrences, df, wkt, taxa)
   }
 
-  def buildOccurrenceCollectionFirstSeenOnly(sc: SparkContext, df: DataFrame, wkt: String, taxa: Seq[String]): Dataset[OccurrenceExt] = {
+  def buildOccurrenceCollectionFirstSeenOnly(sc: SparkContext, df: Dataset[Occurrence], wkt: String, taxa: Seq[String]): Dataset[OccurrenceExt] = {
     collectOccurrences(sc, selectOccurrencesFirstSeenOnly, df, wkt, taxa)
   }
 
-  def collectOccurrences(sc: SparkContext, builder: (SQLContext, DataFrame, Seq[String], String) => DataFrame, df: DataFrame, wkt: String, taxa: Seq[String]): Dataset[OccurrenceExt] = {
+  def collectOccurrences(sc: SparkContext, builder: (SQLContext, Dataset[Occurrence], Seq[String], String) => Dataset[OccurrenceExt], df: Dataset[Occurrence], wkt: String, taxa: Seq[String]): Dataset[OccurrenceExt] = {
     val sqlContext: SQLContext = SQLContextSingleton.getInstance(sc)
     import sqlContext.implicits._
 
-    if (mandatoryTermsAvailable(df)) {
-      builder(sqlContext, df, taxa, wkt)
-        .as[OccurrenceExt]
-    } else {
-      sqlContext.emptyDataFrame.as[OccurrenceExt]
-    }
+    builder(sqlContext, df, taxa, wkt)
   }
 
-  def selectOccurrencesFirstSeenOnly(sqlContext: SQLContext, df: DataFrame, taxa: Seq[String], wkt: String): DataFrame = {
-    val occurrences = selectOccurrences(sqlContext, df, taxa, wkt)
+  def selectOccurrencesFirstSeenOnly(sqlContext: SQLContext, ds: Dataset[Occurrence], taxa: Seq[String], wkt: String): Dataset[OccurrenceExt] = {
+    val occurrences = selectOccurrences(sqlContext, ds, taxa, wkt)
     firstSeenOccurrences(sqlContext, occurrences)
   }
 
 
-  def selectOccurrences(sqlContext: SQLContext, df: DataFrame, taxa: Seq[String], wkt: String): DataFrame = {
+  def selectOccurrences(sqlContext: SQLContext, ds: Dataset[Occurrence], taxa: Seq[String], wkt: String): Dataset[OccurrenceExt] = {
     import sqlContext.implicits._
-
-    val taxonPathTerm: String = "taxonPath"
-    val withPath = df.select(availableTerms(df).map(col): _*)
-      .withColumn(taxonPathTerm, concat_ws("|", availableTaxonTerms(df).map(col): _*))
-
-    val occColumns = locationTerms ::: List(taxonPathTerm) ::: remainingTerms
-
-    val occDS = withPath.select(occColumns.map(col): _*)
-      .withColumnRenamed("http://rs.tdwg.org/dwc/terms/decimalLatitude", "lat")
-      .withColumnRenamed("http://rs.tdwg.org/dwc/terms/decimalLongitude", "lng")
-      .withColumnRenamed("http://rs.tdwg.org/dwc/terms/eventDate", "eventDate")
-      .withColumnRenamed("http://rs.tdwg.org/dwc/terms/occurrenceID", "id")
-      .withColumnRenamed("date", "sourceDate")
-      .as[Occurrence]
-
-    occDS
+    ds
       .filter(x => DateUtil.nonEmpty(x.id))
       .filter(x => DateUtil.validDate(x.sourceDate))
       .filter(x => DateUtil.validDate(x.eventDate))
@@ -236,24 +218,42 @@ object OccurrenceCollectionBuilder {
         pdate = DateUtil.basicDateToUnixTime(occ.sourceDate),
         psource = occ.source)
     }))
-      .toDF
   }
 
-  def firstSeenOccurrences(sqlContext: SQLContext, occurrences: DataFrame): DataFrame = {
+  def toOccurrenceDS(sqlContext: SQLContext, df: DataFrame): Dataset[Occurrence] = {
     import sqlContext.implicits._
-    val occurrencesDS: Dataset[OccurrenceExt] = occurrences.as[OccurrenceExt]
 
-    val firstSeenOnly = occurrencesDS
+    if (mandatoryTermsAvailable(df)) {
+      val taxonPathTerm: String = "taxonPath"
+      val withPath = df.select(availableTerms(df).map(col): _*)
+        .withColumn(taxonPathTerm, concat_ws("|", availableTaxonTerms(df).map(col): _*))
+      val occColumns = locationTerms ::: List(taxonPathTerm) ::: remainingTerms
+
+      withPath.select(occColumns.map(col): _*)
+        .withColumnRenamed("http://rs.tdwg.org/dwc/terms/decimalLatitude", "lat")
+        .withColumnRenamed("http://rs.tdwg.org/dwc/terms/decimalLongitude", "lng")
+        .withColumnRenamed("http://rs.tdwg.org/dwc/terms/eventDate", "eventDate")
+        .withColumnRenamed("http://rs.tdwg.org/dwc/terms/occurrenceID", "id")
+        .withColumnRenamed("date", "sourceDate")
+        .as[Occurrence]
+    } else {
+      sqlContext.emptyDataFrame.as[Occurrence]
+    }
+
+  }
+
+  def firstSeenOccurrences(sqlContext: SQLContext, occurrences: Dataset[OccurrenceExt]): Dataset[OccurrenceExt] = {
+    import sqlContext.implicits._
+
+    occurrences
       .groupBy(_.id)
-      .mapGroups((id, occIter) => (id, occIter.reduce((occ, firstSeen) => {
+      .mapGroups((id, occIter) => occIter.reduce((occ, firstSeen) => {
         if (occ.pdate < firstSeen.pdate) {
           occ
         } else {
           firstSeen
         }
-      })))
-
-    firstSeenOnly.toDF
+      }))
   }
 
 
