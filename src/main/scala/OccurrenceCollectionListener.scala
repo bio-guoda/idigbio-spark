@@ -47,7 +47,7 @@ class OccurrenceCollectionListener(monitorSelector: MonitorSelector) extends Spa
       totalCompletedTasks.incrementAndGet()
       val finishTime: Long = task.taskInfo.finishTime
 
-      if (totalSubmittedTasks > 10 && task.taskInfo.index % 100 == 0) {
+      if (totalSubmittedTasks.get() > 10 && task.taskInfo.index % 100 == 0) {
         reportProgress(finishTime)
       }
     }
