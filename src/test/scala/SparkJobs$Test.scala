@@ -275,15 +275,7 @@ class SparkJobs$Test extends TestSparkContext with RankIdentifiers with LinkIden
 
     collection.count() should be(18)
 
-    val firstSeen: DataFrame = OccurrenceCollectionBuilder.firstSeenOccurrences(collection)
-
-    val gbifFirstSeenOnly = OccurrenceCollectionBuilder.includeFirstSeenOccurrencesOnly(collection, firstSeen)
-
-    firstSeen.count() should be(9)
-    firstSeen.columns should contain("firstSeen")
-    firstSeen.columns should contain("firstSeenID")
-    firstSeen.columns shouldNot contain("http://rs.tdwg.org/dwc/terms/occurrenceID")
-
+    val gbifFirstSeenOnly = OccurrenceCollectionBuilder.firstSeenOccurrences(sqlContext, collection)
     gbifFirstSeenOnly.count() should be(9)
 
     val anotherCollection = OccurrenceCollectionBuilder.selectOccurrences(sqlContext, df = gbif, wkt = "ENVELOPE(4,5,52,50)", taxa = Seq("Dactylis"))
@@ -378,11 +370,11 @@ class SparkJobs$Test extends TestSparkContext with RankIdentifiers with LinkIden
         fail("failed to connect to cassandra. do you have it running?", e)
       }
     }
-    val otherLines = Seq(OccurrenceExt("11.4", "12.2", "Animalia|Aves", "some id", 555L, "some data source", 123L, 124L))
+    val occurrences = Seq(OccurrenceExt("11.4", "12.2", "Animalia|Aves", "some id", 555L, "some data source", 123L, 124L))
 
     OccurrenceCollectionGenerator.saveCollectionToCassandra(sc,
       occurrenceSelector = OccurrenceSelector("some taxonselector", "some wktstring", "some traitselector"),
-      occurrenceCollection = sqlContext.createDataset(otherLines))
+      occurrenceCollection = sqlContext.createDataset(occurrences))
 
     val df = sqlContext
       .read

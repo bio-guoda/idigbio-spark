@@ -24,6 +24,8 @@ case class OccurrenceExt(lat: String,
                          start: Long,
                          end: Long)
 
+case class OccurrenceSeen(firstId: String, firstSeen: Long)
+
 
 object OccurrenceCollectionGenerator {
 
@@ -196,8 +198,7 @@ object OccurrenceCollectionBuilder {
 
   def selectOccurrencesFirstSeenOnly(sqlContext: SQLContext, df: DataFrame, taxa: Seq[String], wkt: String): DataFrame = {
     val occurrences = selectOccurrences(sqlContext, df, taxa, wkt)
-    val firstSeen = firstSeenOccurrences(occurrences)
-    includeFirstSeenOccurrencesOnly(occurrences, firstSeen)
+    firstSeenOccurrences(sqlContext, occurrences)
   }
 
 
@@ -238,24 +239,22 @@ object OccurrenceCollectionBuilder {
       .toDF
   }
 
-  def includeFirstSeenOccurrencesOnly(occurrences: DataFrame, firstSeenOccurrences: DataFrame): DataFrame = {
-    val firstSeen = occurrences.
-      join(firstSeenOccurrences).
-      where(col("id") === col("firstSeenID")).
-      where(col("pdate") === col("firstSeen"))
+  def firstSeenOccurrences(sqlContext: SQLContext, occurrences: DataFrame): DataFrame = {
+    import sqlContext.implicits._
+    val occurrencesDS: Dataset[OccurrenceExt] = occurrences.as[OccurrenceExt]
 
-    firstSeen.
-      drop(col("firstSeen")).drop(col("firstSeenID")).
-      dropDuplicates(Seq("id"))
+    val firstSeenOnly = occurrencesDS
+      .groupBy(_.id)
+      .mapGroups((id, occIter) => (id, occIter.reduce((occ, firstSeen) => {
+        if (occ.pdate < firstSeen.pdate) {
+          occ
+        } else {
+          firstSeen
+        }
+      })))
+
+    firstSeenOnly.toDF
   }
 
-  def firstSeenOccurrences(occurrences: DataFrame): DataFrame = {
-    occurrences.groupBy(col("id")).agg(Map(
-      "pdate" -> "min"
-    )).
-      withColumnRenamed("min(pdate)", "firstSeen").
-      withColumnRenamed("id", "firstSeenID")
-  }
+
 }
-
-
