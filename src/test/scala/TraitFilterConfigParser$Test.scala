@@ -33,12 +33,11 @@ class TraitFilterConfigParser$Test extends FlatSpec with Matchers {
   }
 
   def expectedEqualsFilter: Map[String, String] = {
-    val expected = Map(
+    Map(
       """Measurement URI""" -> """http://purl.obolibrary.org/obo/VT_0001259""",
       """values""" -> """123""",
       """Units URI (normalized)""" -> """http://purl.obolibrary.org/obo/UO_0000009"""
     )
-    expected
   }
 
   "parser" should "produce a trait filter config with list" in {

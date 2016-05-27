@@ -7,6 +7,15 @@ import org.apache.spark.{SparkConf, SparkContext}
 import com.datastax.spark.connector.cql.CassandraConnector
 import com.datastax.spark.connector._
 
+case class Occurrence(lat: String,
+                          lng: String,
+                          taxonPath: String,
+                          eventDate: String,
+                          id: String,
+                          sourceDate: String,
+                          source: String)
+
+
 object OccurrenceCollectionGenerator {
 
   case class OccurrenceSelector(taxonSelector: String, wktString: String, traitSelector: String)
@@ -144,8 +153,9 @@ object OccurrenceCollectionGenerator {
 }
 
 object OccurrenceCollectionBuilder {
-  val locationTerms = List("`http://rs.tdwg.org/dwc/terms/decimalLatitude`"
-    , "`http://rs.tdwg.org/dwc/terms/decimalLongitude`")
+  private val latitudeTerm = "`http://rs.tdwg.org/dwc/terms/decimalLatitude`"
+  private val longitudeTerm = "`http://rs.tdwg.org/dwc/terms/decimalLongitude`"
+  val locationTerms = List(latitudeTerm, longitudeTerm)
   val taxonNameTerms = List("kingdom", "phylum", "class", "order", "family", "genus", "specificEpithet", "scientificName")
     .map(term => s"`http://rs.tdwg.org/dwc/terms/$term`")
   val eventDateTerm = "`http://rs.tdwg.org/dwc/terms/eventDate`"
@@ -194,18 +204,13 @@ object OccurrenceCollectionBuilder {
     includeFirstSeenOccurrencesOnly(occurrences, firstSeen)
   }
 
+
   def selectOccurrences(sqlContext: SQLContext, df: DataFrame, taxa: Seq[String], wkt: String): DataFrame = {
     import org.apache.spark.sql.functions.udf
     import sqlContext.implicits._
-    val hasNonEmpty = udf(DateUtil.nonEmpty(_: String))
-    val hasDate = udf(DateUtil.validDate(_: String))
     val startDateOf = udf(DateUtil.startDate(_: String))
     val basicDateOf = udf(DateUtil.basicDateToUnixTime(_: String))
     val endDateOf = udf(DateUtil.endDate(_: String))
-    val taxaSelected = udf((taxonPath: String) => taxa.intersect(taxonPath.split("\\|")).nonEmpty)
-    val locationSelected = udf((lat: String, lng: String) => {
-      SpatialFilter.locatedInLatLng(wkt, Seq(lat, lng))
-    })
 
     val taxonPathTerm: String = "taxonPath"
     val withPath = df.select(availableTerms(df).map(col): _*)
@@ -213,38 +218,47 @@ object OccurrenceCollectionBuilder {
 
     val occColumns = locationTerms ::: List(taxonPathTerm) ::: remainingTerms
 
-    withPath.select(occColumns.map(col): _*)
-      .filter(hasNonEmpty(col(occurrenceIdTerm)))
-      .filter(hasDate(col("date")))
-      .filter(hasDate(col(eventDateTerm)))
-      .filter(taxaSelected(col(taxonPathTerm)))
-      .filter(locationSelected(locationTerms.map(col): _*))
-      .withColumn("pdate", basicDateOf(col("date")))
+    val occDS = withPath.select(occColumns.map(col): _*)
+          .withColumnRenamed("http://rs.tdwg.org/dwc/terms/decimalLatitude", "lat")
+          .withColumnRenamed("http://rs.tdwg.org/dwc/terms/decimalLongitude", "lng")
+          .withColumnRenamed("http://rs.tdwg.org/dwc/terms/eventDate", "eventDate")
+          .withColumnRenamed("http://rs.tdwg.org/dwc/terms/occurrenceID", "id")
+          .withColumnRenamed("date", "sourceDate")
+          .as[Occurrence]
+
+    occDS
+      .filter(x => DateUtil.nonEmpty(x.id))
+      .filter(x => DateUtil.validDate(x.sourceDate))
+      .filter(x => DateUtil.validDate(x.eventDate))
+      .filter(x => taxa.intersect(x.taxonPath.split("\\|")).nonEmpty)
+      .filter(x => SpatialFilter.locatedInLatLng(wkt, Seq(x.lat, x.lng)))
+      .toDF
+      .withColumn("pdate", basicDateOf(col("sourceDate")))
       .withColumn("psource", col("source"))
-      .withColumn("start", startDateOf(col(eventDateTerm)))
-      .withColumn("end", endDateOf(col(eventDateTerm)))
-      .drop(col(eventDateTerm))
-      .drop(col("date"))
+      .withColumn("start", startDateOf(col("eventDate")))
+      .withColumn("end", endDateOf(col("eventDate")))
+      .drop(col("eventDate"))
+      .drop(col("sourceDate"))
       .drop(col("source"))
   }
 
   def includeFirstSeenOccurrencesOnly(occurrences: DataFrame, firstSeenOccurrences: DataFrame): DataFrame = {
     val firstSeen = occurrences.
       join(firstSeenOccurrences).
-      where(col(OccurrenceCollectionBuilder.occurrenceIdTerm) === col("firstSeenID")).
+      where(col("id") === col("firstSeenID")).
       where(col("pdate") === col("firstSeen"))
 
     firstSeen.
       drop(col("firstSeen")).drop(col("firstSeenID")).
-      dropDuplicates(Seq(OccurrenceCollectionBuilder.occurrenceIdTerm))
+      dropDuplicates(Seq("id"))
   }
 
   def firstSeenOccurrences(occurrences: DataFrame): DataFrame = {
-    occurrences.groupBy(col(OccurrenceCollectionBuilder.occurrenceIdTerm)).agg(Map(
+    occurrences.groupBy(col("id")).agg(Map(
       "pdate" -> "min"
     )).
       withColumnRenamed("min(pdate)", "firstSeen").
-      withColumnRenamed("http://rs.tdwg.org/dwc/terms/occurrenceID", "firstSeenID")
+      withColumnRenamed("id", "firstSeenID")
   }
 }
 
