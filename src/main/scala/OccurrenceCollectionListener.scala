@@ -9,14 +9,14 @@ import spray.json._
 
 case class MonitorSelector(taxonSelector: String, wktString: String, traitSelector: String)
 
-case class MonitorStatus(selector: MonitorSelector, status: String, percentComplete: Double, eta: Long)
+case class MonitorStatus(selector: OccurrenceSelector, status: String, percentComplete: Double, eta: Long)
 
 object MonitorStatusJsonProtocol extends DefaultJsonProtocol {
-  implicit val monitorSelectorFormat = jsonFormat3(MonitorSelector)
+  implicit val monitorSelectorFormat = jsonFormat3(OccurrenceSelector)
   implicit val monitorStatusFormat = jsonFormat4(MonitorStatus)
 }
 
-class OccurrenceCollectionListener(monitorSelector: MonitorSelector) extends SparkListener {
+class OccurrenceCollectionListener(monitorSelector: OccurrenceSelector) extends SparkListener {
   val props = new util.HashMap[String, Object]()
   val topic = "effechecka-selector"
   props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:9092")

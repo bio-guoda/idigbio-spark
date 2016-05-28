@@ -1,6 +1,5 @@
 import java.util
 
-import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.{Dataset, DataFrame, SQLContext}
 import org.apache.spark.{SparkConf, SparkContext}
@@ -24,25 +23,22 @@ case class OccurrenceExt(lat: String,
                          start: Long,
                          end: Long)
 
-case class OccurrenceSeen(firstId: String, firstSeen: Long)
-
+case class OccurrenceSelector(taxonSelector: String, wktString: String, traitSelector: String)
 
 object OccurrenceCollectionGenerator {
 
-  case class OccurrenceSelector(taxonSelector: String, wktString: String, traitSelector: String)
-
   def generateCollection(config: ChecklistConf) {
     val occurrenceFile = config.occurrenceFiles.head
-    val taxonSelector = config.taxonSelector
-    val taxonSelectorString: String = taxonSelector.mkString("|")
-    val wktString = config.geoSpatialSelector.trim
+
+    val selectorConfig = toOccurrenceSelector(config)
+    val selectors: Seq[(OccurrenceExt) => Boolean] = buildSelectors(selectorConfig)
 
     val conf = new SparkConf()
       .set("spark.cassandra.connection.host", "localhost")
       .setAppName("occ2collection")
 
     val sc = new SparkContext(conf)
-    sc.addSparkListener(new OccurrenceCollectionListener(MonitorSelector(taxonSelectorString, wktString, config.traitSelector.mkString("|"))))
+    sc.addSparkListener(new OccurrenceCollectionListener(selectorConfig))
 
 
     val occurrenceSelector = {
@@ -57,20 +53,34 @@ object OccurrenceCollectionGenerator {
     val occurrences: DataFrame = sqlContext.read.format("parquet").load(occurrenceFile)
     val ds: Dataset[Occurrence] = OccurrenceCollectionBuilder.toOccurrenceDS(sqlContext, occurrences)
 
-    val occurrenceCollection = OccurrenceCollectionBuilder
-      .collectOccurrences(sc, occurrenceSelector, ds, wktString, taxonSelector)
+    val occurrenceCollection = occurrenceSelector(SQLContextSingleton.getInstance(sc), ds, selectors)
 
-    val traitSelectors = config.traitSelector
-    val traitSelectorString: String = traitSelectors.mkString("|")
 
     config.outputFormat.trim match {
       case "cassandra" =>
-        saveCollectionToCassandra(sc, OccurrenceSelector(taxonSelectorString, wktString, traitSelectorString), occurrenceCollection)
+        saveCollectionToCassandra(sc, selectorConfig, occurrenceCollection)
 
       case _ =>
         println(s"unsupported output format [${config.outputFormat}]")
     }
 
+  }
+
+  def buildSelectors(selectorConfig: OccurrenceSelector): Seq[(OccurrenceExt) => Boolean] = {
+    val taxonFilter: (OccurrenceExt) => Boolean = x => selectorConfig.taxonSelector.split("\\|").intersect(x.taxonPath.split("\\|")).nonEmpty
+    val geoSpatialFilter: (OccurrenceExt) => Boolean = x => SpatialFilter.locatedInLatLng(selectorConfig.wktString, Seq(x.lat, x.lng))
+    Seq(taxonFilter, geoSpatialFilter)
+  }
+
+  def toOccurrenceSelector(config: ChecklistConf): OccurrenceSelector = {
+    val taxonSelector = config.taxonSelector
+    val traitSelectors = config.traitSelector
+
+    val wktString = config.geoSpatialSelector.trim
+    val taxonSelectorString: String = taxonSelector.mkString("|")
+    val traitSelectorString: String = traitSelectors.mkString("|")
+
+    OccurrenceSelector(taxonSelectorString, wktString, traitSelectorString)
   }
 
   def saveCollectionToCassandra(sc: SparkContext, occurrenceSelector: OccurrenceSelector, occurrenceCollection: Dataset[OccurrenceExt]): Unit = {
@@ -178,46 +188,47 @@ object OccurrenceCollectionBuilder {
       && availableTaxonTerms.nonEmpty)
   }
 
-  def buildOccurrenceCollection(sc: SparkContext, df: Dataset[Occurrence], wkt: String, taxa: Seq[String]): Dataset[OccurrenceExt] = {
-    collectOccurrences(sc, selectOccurrences, df, wkt, taxa)
+  def buildOccurrenceCollection(sc: SparkContext, df: Dataset[Occurrence], selectors: Seq[(OccurrenceExt) => Boolean] ): Dataset[OccurrenceExt] = {
+    selectOccurrences(SQLContextSingleton.getInstance(sc), df, selectors)
   }
 
-  def buildOccurrenceCollectionFirstSeenOnly(sc: SparkContext, df: Dataset[Occurrence], wkt: String, taxa: Seq[String]): Dataset[OccurrenceExt] = {
-    collectOccurrences(sc, selectOccurrencesFirstSeenOnly, df, wkt, taxa)
+  def buildOccurrenceCollectionFirstSeenOnly(sc: SparkContext, ds: Dataset[Occurrence], selectors: Seq[(OccurrenceExt) => Boolean] ): Dataset[OccurrenceExt] = {
+    selectOccurrencesFirstSeenOnly(SQLContextSingleton.getInstance(sc), ds, selectors)
   }
 
-  def collectOccurrences(sc: SparkContext, builder: (SQLContext, Dataset[Occurrence], Seq[String], String) => Dataset[OccurrenceExt], df: Dataset[Occurrence], wkt: String, taxa: Seq[String]): Dataset[OccurrenceExt] = {
-    val sqlContext: SQLContext = SQLContextSingleton.getInstance(sc)
-    import sqlContext.implicits._
 
-    builder(sqlContext, df, taxa, wkt)
-  }
-
-  def selectOccurrencesFirstSeenOnly(sqlContext: SQLContext, ds: Dataset[Occurrence], taxa: Seq[String], wkt: String): Dataset[OccurrenceExt] = {
-    val occurrences = selectOccurrences(sqlContext, ds, taxa, wkt)
+  def selectOccurrencesFirstSeenOnly(sqlContext: SQLContext, ds: Dataset[Occurrence], selectors: Seq[(OccurrenceExt) => Boolean]): Dataset[OccurrenceExt] = {
+    val occurrences = selectOccurrences(sqlContext, ds, selectors)
     firstSeenOccurrences(sqlContext, occurrences)
   }
 
 
-  def selectOccurrences(sqlContext: SQLContext, ds: Dataset[Occurrence], taxa: Seq[String], wkt: String): Dataset[OccurrenceExt] = {
+  def selectOccurrences(sqlContext: SQLContext, ds: Dataset[Occurrence], selectors: Seq[(OccurrenceExt) => Boolean]): Dataset[OccurrenceExt] = {
     import sqlContext.implicits._
-    ds
+
+    val normalize: (Dataset[Occurrence] => Dataset[OccurrenceExt]) = {
+      _.map(occ => {
+        val startEnd = DateUtil.startEndDate(occ.eventDate)
+        OccurrenceExt(
+          lat = occ.lat, lng = occ.lng,
+          taxonPath = occ.taxonPath,
+          start = startEnd._1,
+          end = startEnd._2,
+          id = occ.id,
+          pdate = DateUtil.basicDateToUnixTime(occ.sourceDate),
+          psource = occ.source)
+      })
+    }
+
+    val scrubbed = ds
       .filter(x => DateUtil.nonEmpty(x.id))
       .filter(x => DateUtil.validDate(x.sourceDate))
       .filter(x => DateUtil.validDate(x.eventDate))
-      .filter(x => taxa.intersect(x.taxonPath.split("\\|")).nonEmpty)
-      .filter(x => SpatialFilter.locatedInLatLng(wkt, Seq(x.lat, x.lng)))
-      .transform[OccurrenceExt](ds => ds.map(occ => {
-      val startEnd = DateUtil.startEndDate(occ.eventDate)
-      OccurrenceExt(
-        lat = occ.lat, lng = occ.lng,
-        taxonPath = occ.taxonPath,
-        start = startEnd._1,
-        end = startEnd._2,
-        id = occ.id,
-        pdate = DateUtil.basicDateToUnixTime(occ.sourceDate),
-        psource = occ.source)
-    }))
+      .transform(normalize)
+
+    selectors
+      .foldLeft(scrubbed)((occ, selector) => occ.filter(selector))
+
   }
 
   def toOccurrenceDS(sqlContext: SQLContext, df: DataFrame): Dataset[Occurrence] = {
