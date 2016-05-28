@@ -92,10 +92,7 @@ class SparkJobs$Test extends TestSparkContext with RankIdentifiers with LinkIden
     val taxonNames: Seq[String] = Seq("Dactylis")
 
     val checklist: RDD[(String, Int)] = ChecklistBuilder.buildChecklist(sc, df, wkt, taxonNames)
-
-    checklist.collect.foreach(println)
     checklist.count should be(1)
-
   }
 
   def traitsAndChecklist: (RDD[(String, Int)], RDD[Seq[(String, String)]]) = {
