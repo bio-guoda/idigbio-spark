@@ -29,12 +29,20 @@ object SpatialFilter {
     }
   }
 
-
   def locatedInLatLng(wktString: String, values: Seq[String]): Boolean = {
+    parseWkt(wktString) match {
+      case (Some(area)) => {
+        valuesInArea(values, area)
+      }
+      case _ => false
+    }
+  }
+
+  def valuesInArea(values: Seq[String], area: Shape): Boolean = {
     (parseDouble(values.head), parseDouble(values.last)) match {
       case (Some(lat), Some(lng)) =>
-        (parseWkt(wktString), parsePoint(lng, lat)) match {
-          case (Some(area), Some(point)) =>
+        parsePoint(lng, lat) match {
+          case Some(point) =>
             List(SpatialRelation.CONTAINS, SpatialRelation.INTERSECTS, SpatialRelation.WITHIN)
               .contains(area.relate(point))
           case _ => false

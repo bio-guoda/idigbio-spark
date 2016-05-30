@@ -243,8 +243,8 @@ class SparkJobs$Test extends TestSparkContext with RankIdentifiers with LinkIden
     collectedLinks should contain(Row("904605700", "refers", "68BAECEE-E995-4F11-B7B5-88D252879345/141"))
   }
 
-  def plantaeSelector = buildSelectors(OccurrenceSelector("Plantae", "ENVELOPE(4,5,52,50)", ""))
-  def dactylisSelector = buildSelectors(OccurrenceSelector("Dactylis", "ENVELOPE(4,5,52,50)", ""))
+  def plantaeSelector = OccurrenceSelectors.all(OccurrenceSelector("Plantae", "ENVELOPE(4,5,52,50)", ""))
+  def dactylisSelector = OccurrenceSelectors.all(OccurrenceSelector("Dactylis", "ENVELOPE(4,5,52,50)", ""))
 
   "apply occurrence filter to gbif sample" should "select a few occurrences" in {
     val sqlContext = new SQLContext(sc)
@@ -295,13 +295,13 @@ class SparkJobs$Test extends TestSparkContext with RankIdentifiers with LinkIden
     val sqlContext = new SQLContext(sc)
     import sqlContext.implicits._
 
-    val selectors = buildSelectors(OccurrenceSelector("Animalia", "ENVELOPE(-100,-90,40,30)", ""))
+    val selectors = OccurrenceSelectors.all(OccurrenceSelector("Animalia", "ENVELOPE(-100,-90,40,30)", ""))
     val collection = buildOccurrenceCollection(sc, toOccurrenceDS(sqlContext, idigbio), selectors)
 
     collection.count() should be(1)
     collection.first().lat should be("33.4519400")
 
-    val otherSelectors = buildSelectors(OccurrenceSelector("Crurithyris", "ENVELOPE(-100,-90,40,30)", ""))
+    val otherSelectors = OccurrenceSelectors.all(OccurrenceSelector("Crurithyris", "ENVELOPE(-100,-90,40,30)", ""))
 
     val anotherCollection = buildOccurrenceCollection(sc, toOccurrenceDS(sqlContext, idigbio), otherSelectors)
 
