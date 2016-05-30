@@ -26,7 +26,7 @@ trait TestSparkContext extends FlatSpec with Matchers with BeforeAndAfter with S
 
 }
 
-class SparkJobs$Test extends TestSparkContext with RankIdentifiers with LinkIdentifiers with DwCSparkHandler {
+class SparkJobs$Test extends TestSparkContext with DwCSparkHandler {
 
   "combining header and rows" should "create a record map" in {
     val header = new CSVParser().parseLine(traitHeader)
@@ -135,19 +135,6 @@ class SparkJobs$Test extends TestSparkContext with RankIdentifiers with LinkIden
     """EOL page ID,Scientific Name,Common Name,Measurement,Value,Measurement URI,Value URI,Units (normalized),Units URI (normalized),Raw Value (direct from source),Raw Units (direct from source),Raw Units URI (normalized),Supplier,Content Partner Resource URL,source,citation,measurement method,statistical method,life stage,scientific name,measurement remarks,Reference,contributor"""
   }
 
-  "concatenating rows" should "link the record with the concatenated values" in {
-    val headers = Seq("id", "dwc:scientificName", "dwc:scientificNameAuthorship", "dwc:someOther")
-    val lines = Seq("123,Mickey mousus,walt,xyz", "345,Donald duckus,walt,zzz")
-    val rdd = sc.parallelize(lines)
-
-    val recordLinks = RecordLinker.handleLines(rdd, headers, "id", NameConcat.concatName).collect()
-
-    recordLinks should contain(("345", "Donald duckus walt"))
-    recordLinks should contain(("123", "Mickey mousus walt"))
-    recordLinks should not contain (("h2", "v2_2"))
-    recordLinks should not contain (("h2", "v2_1"))
-  }
-
   "generating a checklist" should "an ordered list of most frequently observed taxa" in {
     val headers = Seq("id", "dwc:scientificName", "dwc:scientificNameAuthorship", "dwc:decimalLatitude", "dwc:decimalLongitude")
     val lines = Seq("123,Mickey mousus,walt,12.2,16.4"
@@ -219,28 +206,6 @@ class SparkJobs$Test extends TestSparkContext with RankIdentifiers with LinkIden
       , ("some other taxonselector", "some wktstring", "some traitselector", "Animalia|Aves", "11.4", "12.2", "2013-05-03", 123L, 125L, 635829854630400000L, "http://archive2")
     )
     sc.parallelize(otherLines).saveToCassandra("effechecka", "occurrence_collection", CassandraUtil.occurrenceCollectionColumns)
-  }
-
-  "linking idigbio identifier columns" should "produce a list of connected triples" in {
-    val sqlContext = new SQLContext(sc)
-
-    val idigbio = readDwC.last
-    idigbio._2.count() should be(9)
-
-    val linkDF: DataFrame = toLinkDF(sqlContext, idigbio._2, IdentifierUtil.idigbioColumns)
-    val collectedLinks = linkDF.collect()
-    collectedLinks should contain(Row("008a28ae-9197-4561-8412-3596fe1984f4", "refers", "KUMIP"))
-    collectedLinks should not contain Row("000b9be5-1cf6-4016-b3cb-7b4c3f4cabcb", "refers", "")
-  }
-
-  "linking gbif identifier columns" should "produce a list of connected triples" in {
-    val sqlContext = new SQLContext(sc)
-    val gbif = readDwC.head
-    gbif._2.count() should be(9)
-
-    val linkDF: DataFrame = toLinkDF(sqlContext, gbif._2, IdentifierUtil.gbifColumns)
-    val collectedLinks = linkDF.collect()
-    collectedLinks should contain(Row("904605700", "refers", "68BAECEE-E995-4F11-B7B5-88D252879345/141"))
   }
 
   def plantaeSelector = OccurrenceSelectors.all(OccurrenceSelector("Plantae", "ENVELOPE(4,5,52,50)", ""))
@@ -342,29 +307,6 @@ class SparkJobs$Test extends TestSparkContext with RankIdentifiers with LinkIden
       _.toString
     })
   }
-
-  "creating a graph" should "leverage rows" in {
-    val rows = Seq(Row("src1", "refers", "dst1"),
-      Row("src2", "refers", "dst1"),
-      Row("src3", "refers", "dst2"))
-
-    val rdd: RDD[Row] = sc.parallelize(rows)
-
-    val moreRows = Seq(Row("src4", "refers", "dst1"),
-      Row("src5", "refers", "dst1"),
-      Row("src6", "refers", "dst2"))
-
-    val df1 = sc.parallelize(rows)
-    val df2 = sc.parallelize(moreRows)
-    val rankForIds = toRankDF(Seq(df1, df2))
-
-    val top10: Array[(Double, String)] = rankForIds.take(10)
-    top10.head should be((0.66, "dst1"))
-    top10 should contain((0.66, "dst1"))
-    top10 should contain((0.15, "src1"))
-    top10 should contain((0.15, "src6"))
-  }
-
   "occurrence collection" should "be saved to cassandra" in {
     val sqlContext = new SQLContext(sc)
     import sqlContext.implicits._

@@ -7,8 +7,6 @@ scalaVersion := "2.10.5"
 val sparkV: String = "1.6.1"
 
 libraryDependencies ++= Seq(
-  "org.littleshoot" % "littleshoot-commons-id" % "1.0.3" excludeAll (
-    ExclusionRule("org.slf4j", "slf4j-api")),
   "com.google.guava" % "guava" % "16.0.1",
   "net.sf.opencsv" % "opencsv" % "2.3",
   "org.apache.commons" % "commons-csv" % "1.1",
@@ -20,7 +18,6 @@ libraryDependencies ++= Seq(
   "org.locationtech.spatial4j" % "spatial4j" % "0.6",
   "com.vividsolutions" % "jts-core" % "1.14.0",
   "org.apache.spark" %% "spark-sql" % sparkV % "provided",
-  "org.apache.spark" %% "spark-graphx" % sparkV % "provided",
   "org.apache.spark" %% "spark-streaming-kafka" % sparkV excludeAll(
     ExclusionRule("org.spark-project.spark", "unused")
     ),

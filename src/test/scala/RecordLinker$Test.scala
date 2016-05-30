@@ -15,8 +15,6 @@ class RecordLinker$Test extends FlatSpec with Matchers {
     RecordLinker.parseLine(lineString) should be(None)
   }
 
-
-
   def columnConcatLinker(row: Map[String, String]): String = {
     val values: List[String] = List("h2", "h3") flatMap (row get)
     values.mkString(" ")
