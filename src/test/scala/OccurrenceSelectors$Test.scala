@@ -13,26 +13,26 @@ class OccurrenceSelectors$Test extends FlatSpec with Matchers {
     selectors(notMatching) should be(false)
   }
 
-//  "a event time selector" should "include matching occurrences" in {
-//    val selectors = OccurrenceSelectors.traitSelector(OccurrenceSelector(traitSelector = "eventTime > 2016-01-01 datetime"))
-//    val matching = OccurrenceExt("51", "4.1", "Plantae", "", 0L, "bla", 0L, 0L)
-//    selectors(matching) should be(false)
-//
-//    val invertedSelectors = OccurrenceSelectors.traitSelector(OccurrenceSelector(traitSelector = "eventTime < 2016-01-01 datetime"))
-//    invertedSelectors(matching) should be(true)
-//  }
-//
-//  "a source selector" should "include matching occurrences" in {
-//    val selectors = OccurrenceSelectors.traitSelector(OccurrenceSelector(traitSelector = "source == otherSource"))
-//    val matching = OccurrenceExt("51", "4.1", "Plantae", "", 0L, "someSource", 0L, 0L)
-//    selectors(matching) should be(false)
-//
-//    val invertedSelectors = OccurrenceSelectors.traitSelector(OccurrenceSelector(traitSelector = "source == someSource"))
-//    invertedSelectors(matching) should be(true)
-//
-//    val combinedSelectors = OccurrenceSelectors.all(OccurrenceSelector(traitSelector = "source == {otherSource,someSource}"))
-//    combinedSelectors(matching) should be(true)
-//  }
+  "a event time selector" should "include matching occurrences" in {
+    val selectors = OccurrenceSelectors.traitSelector(OccurrenceSelector(traitSelector = "eventDate > 2016-01-01 datetime"))
+    val matching = OccurrenceExt("51", "4.1", "Plantae", "", 0L, "bla", 0L, 0L)
+    selectors(matching) should be(false)
+
+    val invertedSelectors = OccurrenceSelectors.traitSelector(OccurrenceSelector(traitSelector = "eventDate < 2016-01-01 datetime"))
+    invertedSelectors(matching) should be(true)
+  }
+
+  "a source selector" should "include matching occurrences" in {
+    val selectors = OccurrenceSelectors.traitSelector(OccurrenceSelector(traitSelector = "source == otherSource string"))
+    val matching = OccurrenceExt("51", "4.1", "Plantae", "", 0L, "someSource", 0L, 0L)
+    selectors(matching) should be(false)
+
+    val invertedSelectors = OccurrenceSelectors.traitSelector(OccurrenceSelector(traitSelector = "source == someSource string"))
+    invertedSelectors(matching) should be(true)
+
+    val notSelector = OccurrenceSelectors.traitSelector(OccurrenceSelector(traitSelector = "source != otherSource string"))
+    notSelector(matching) should be(true)
+  }
 
 
 }
