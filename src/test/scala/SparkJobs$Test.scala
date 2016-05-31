@@ -1,17 +1,16 @@
 import java.io.IOException
 
 import OccurrenceCollectionBuilder._
-import OccurrenceCollectionGenerator._
+import OccurrenceSelectors._
 import au.com.bytecode.opencsv.CSVParser
 import com.datastax.spark.connector._
 import com.datastax.spark.connector.cql.CassandraConnector
+import com.holdenkarau.spark.testing.SharedSparkContext
 import org.apache.spark.SparkConf
 import org.apache.spark.rdd.RDD
-import org.apache.spark.{SparkConf, SparkContext}
-import org.apache.spark.sql.{Dataset, Row, DataFrame, SQLContext}
 import org.apache.spark.sql.functions._
+import org.apache.spark.sql.{DataFrame, Dataset, Row, SQLContext}
 import org.scalatest._
-import com.holdenkarau.spark.testing.SharedSparkContext
 
 
 trait TestSparkContext extends FlatSpec with Matchers with BeforeAndAfter with SharedSparkContext {
@@ -208,12 +207,11 @@ class SparkJobs$Test extends TestSparkContext with DwCSparkHandler {
     sc.parallelize(otherLines).saveToCassandra("effechecka", "occurrence_collection", CassandraUtil.occurrenceCollectionColumns)
   }
 
-  def plantaeSelector = OccurrenceSelectors.all(OccurrenceSelector("Plantae", "ENVELOPE(4,5,52,50)", ""))
-  def dactylisSelector = OccurrenceSelectors.all(OccurrenceSelector("Dactylis", "ENVELOPE(4,5,52,50)", ""))
+  def plantaeSelector = OccurrenceSelectors.allSelectors(OccurrenceSelector("Plantae", "ENVELOPE(4,5,52,50)", ""))
+  def dactylisSelector = OccurrenceSelectors.allSelectors(OccurrenceSelector("Dactylis", "ENVELOPE(4,5,52,50)", ""))
 
   "apply occurrence filter to gbif sample" should "select a few occurrences" in {
     val sqlContext = new SQLContext(sc)
-    import sqlContext.implicits._
 
     val gbif = readDwC.head._2
 
@@ -232,7 +230,6 @@ class SparkJobs$Test extends TestSparkContext with DwCSparkHandler {
 
   "apply first added aggregate" should "select a few occurrences" in {
     val sqlContext = new SQLContext(sc)
-    import sqlContext.implicits._
 
     val df = readDwCNoSource.head._2
 
@@ -258,15 +255,14 @@ class SparkJobs$Test extends TestSparkContext with DwCSparkHandler {
   "apply occurrence filter to idigbio sample" should "select a few occurrences" in {
     val idigbio = readDwC.last._2
     val sqlContext = new SQLContext(sc)
-    import sqlContext.implicits._
 
-    val selectors = OccurrenceSelectors.all(OccurrenceSelector("Animalia", "ENVELOPE(-100,-90,40,30)", ""))
+    val selectors = allSelectors(OccurrenceSelector("Animalia", "ENVELOPE(-100,-90,40,30)", ""))
     val collection = buildOccurrenceCollection(sc, toOccurrenceDS(sqlContext, idigbio), selectors)
 
     collection.count() should be(1)
     collection.first().lat should be("33.4519400")
 
-    val otherSelectors = OccurrenceSelectors.all(OccurrenceSelector("Crurithyris", "ENVELOPE(-100,-90,40,30)", ""))
+    val otherSelectors = allSelectors(OccurrenceSelector("Crurithyris", "ENVELOPE(-100,-90,40,30)", ""))
 
     val anotherCollection = buildOccurrenceCollection(sc, toOccurrenceDS(sqlContext, idigbio), otherSelectors)
 
@@ -323,7 +319,7 @@ class SparkJobs$Test extends TestSparkContext with DwCSparkHandler {
         fail("failed to connect to cassandra. do you have it running?", e)
       }
     }
-    val occurrences = Seq(OccurrenceExt("11.4", "12.2", "Animalia|Aves", "some id", 555L, "some data source", 123L, 124L))
+    val occurrences = Seq(Occurrence("11.4", "12.2", "Animalia|Aves", "2013-01-01", "some id", "20140101", "some data source"))
 
     OccurrenceCollectionGenerator.saveCollectionToCassandra(sc,
       occurrenceSelector = OccurrenceSelector("some taxonselector", "some wktstring", "some traitselector"),

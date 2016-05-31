@@ -1,3 +1,5 @@
+import OccurrenceSelectors.OccurrenceFilter
+
 import scala.util.parsing.combinator._
 
 object TraitSelectorParser extends RegexParsers {
@@ -18,28 +20,33 @@ object TraitSelectorParser extends RegexParsers {
     _.toString
   }
 
-  def selector: Parser[OccurrenceExt => Boolean] = term ~ operator ~ values ~ unit ^^ {
+  def selector: Parser[OccurrenceFilter] = term ~ operator ~ values ~ unit ^^ {
     case "eventDate" ~ ">" ~ value ~ "datetime" => {
-      (x: OccurrenceExt) => x.start > DateUtil.startDate(value)
+      (x: Occurrence) => {
+        println(s"${x.eventDate} > $value")
+        DateUtil.startDate(x.eventDate) > DateUtil.startDate(value)
+      }
     }
     case "eventDate" ~ "<" ~ value ~ "datetime" => {
-      (x: OccurrenceExt) => x.end < DateUtil.endDate(value)
+      (x: Occurrence) => {
+        println(s"${x.eventDate} < $value")
+        DateUtil.endDate(x.eventDate) < DateUtil.endDate(value)
+      }
     }
     case "source" ~ "==" ~ value ~ "string" => {
-      (x: OccurrenceExt) => x.psource.equals(value)
+      (x: Occurrence) => x.source.equals(value)
     }
     case "source" ~ "!=" ~ value ~ "string" => {
-      (x: OccurrenceExt) => !x.psource.equals(value)
+      (x: Occurrence) => !x.source.equals(value)
     }
     case name ~ op ~ value ~ unit =>
       println(s"unsupported trait selector: $name $op $value $unit")
-      (x: OccurrenceExt) => false
-
+      OccurrenceSelectors.selectNever
   }
 
-  def config: Parser[OccurrenceExt => Boolean] = selector ~ rep("|" ~ selector) ^^ {
+  def config: Parser[OccurrenceFilter] = selector ~ rep("|" ~ selector) ^^ {
     case aSelector ~ list => (aSelector /: list) {
-      case (x, "|" ~ y) => (occ: OccurrenceExt) => Seq(x, y).forall(_(occ))
+      case (x, "|" ~ y) => (occ: Occurrence) => Seq(x, y).forall(_(occ))
     }
   }
 }

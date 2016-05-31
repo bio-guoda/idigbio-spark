@@ -1,5 +1,6 @@
 import java.util
 
+import OccurrenceSelectors.OccurrenceFilter
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.{Dataset, DataFrame, SQLContext}
 import org.apache.spark.{SparkConf, SparkContext}
@@ -14,14 +15,14 @@ case class Occurrence(lat: String,
                       sourceDate: String,
                       source: String)
 
-case class OccurrenceExt(lat: String,
-                         lng: String,
-                         taxonPath: String,
-                         id: String,
-                         pdate: Long,
-                         psource: String,
-                         start: Long,
-                         end: Long)
+case class OccurrenceCassandra(lat: String,
+                               lng: String,
+                               taxonPath: String,
+                               id: String,
+                               pdate: Long,
+                               psource: String,
+                               start: Long,
+                               end: Long)
 
 case class OccurrenceSelector(taxonSelector: String = "", wktString: String = "", traitSelector: String = "")
 
@@ -50,14 +51,13 @@ object OccurrenceCollectionGenerator {
 
     val sqlContext = SQLContextSingleton.getInstance(sc)
 
-    val occurrenceCollection = load(occurrenceFile, sqlContext).transform[OccurrenceExt]({ ds =>
-      occurrenceSelector(sqlContext, ds, OccurrenceSelectors.all(selectorConfig))
+    val occurrenceCollection = load(occurrenceFile, sqlContext).transform[Occurrence]({ ds =>
+      occurrenceSelector(sqlContext, ds, OccurrenceSelectors.allSelectors(selectorConfig))
     })
 
     config.outputFormat.trim match {
       case "cassandra" =>
         saveCollectionToCassandra(sc, selectorConfig, occurrenceCollection)
-
       case _ =>
         println(s"unsupported output format [${config.outputFormat}]")
     }
@@ -82,7 +82,7 @@ object OccurrenceCollectionGenerator {
     OccurrenceSelector(taxonSelectorString, wktString, traitSelectorString)
   }
 
-  def saveCollectionToCassandra(sc: SparkContext, occurrenceSelector: OccurrenceSelector, occurrenceCollection: Dataset[OccurrenceExt]): Unit = {
+  def saveCollectionToCassandra(sc: SparkContext, occurrenceSelector: OccurrenceSelector, occurrenceCollection: Dataset[Occurrence]): Unit = {
     val sqlContext: SQLContext = SQLContextSingleton.getInstance(sc)
     import sqlContext.implicits._
 
@@ -98,7 +98,23 @@ object OccurrenceCollectionGenerator {
     val wktString: String = occurrenceSelector.wktString
     val traitSelectorString: String = occurrenceSelector.traitSelector
 
-    occurrenceCollection.map(item => {
+    val normalize: (Dataset[Occurrence] => Dataset[OccurrenceCassandra]) = {
+      _.map(occ => {
+        val startEnd = DateUtil.startEndDate(occ.eventDate)
+        OccurrenceCassandra(
+          lat = occ.lat, lng = occ.lng,
+          taxonPath = occ.taxonPath,
+          start = startEnd._1,
+          end = startEnd._2,
+          id = occ.id,
+          pdate = DateUtil.basicDateToUnixTime(occ.sourceDate),
+          psource = occ.source)
+      })
+    }
+
+    val occurrencesForCassandra = occurrenceCollection.transform(normalize)
+
+    occurrencesForCassandra.map(item => {
       (taxonSelectorString, wktString, traitSelectorString,
         item.taxonPath, item.lat, item.lng,
         item.start, item.end,
@@ -106,11 +122,11 @@ object OccurrenceCollectionGenerator {
         item.pdate, item.psource)
     }).rdd.saveToCassandra("effechecka", "occurrence_collection", CassandraUtil.occurrenceCollectionColumns)
 
-    occurrenceCollection.map(item => {
+    occurrencesForCassandra.map(item => {
       (item.psource, item.id, taxonSelectorString, wktString, traitSelectorString)
     }).rdd.saveToCassandra("effechecka", "occurrence_search", CassandraUtil.occurrenceSearchColumns)
 
-    occurrenceCollection.map(item => {
+    occurrencesForCassandra.map(item => {
       (item.psource, item.pdate, item.id)
     }).rdd.saveToCassandra("effechecka", "occurrence_first_added_search", CassandraUtil.occurrenceFirstAddedSearchColumns)
 
@@ -187,43 +203,28 @@ object OccurrenceCollectionBuilder {
       && availableTaxonTerms.nonEmpty)
   }
 
-  def buildOccurrenceCollection(sc: SparkContext, df: Dataset[Occurrence], selector: (OccurrenceExt) => Boolean): Dataset[OccurrenceExt] = {
+  def buildOccurrenceCollection(sc: SparkContext, df: Dataset[Occurrence], selector: OccurrenceFilter): Dataset[Occurrence] = {
     selectOccurrences(SQLContextSingleton.getInstance(sc), df, selector)
   }
 
-  def buildOccurrenceCollectionFirstSeenOnly(sc: SparkContext, ds: Dataset[Occurrence], selector: (OccurrenceExt) => Boolean): Dataset[OccurrenceExt] = {
+  def buildOccurrenceCollectionFirstSeenOnly(sc: SparkContext, ds: Dataset[Occurrence], selector: OccurrenceFilter): Dataset[Occurrence] = {
     selectOccurrencesFirstSeenOnly(SQLContextSingleton.getInstance(sc), ds, selector)
   }
 
 
-  def selectOccurrencesFirstSeenOnly(sqlContext: SQLContext, ds: Dataset[Occurrence], selector: (OccurrenceExt) => Boolean): Dataset[OccurrenceExt] = {
+  def selectOccurrencesFirstSeenOnly(sqlContext: SQLContext, ds: Dataset[Occurrence], selector: OccurrenceFilter): Dataset[Occurrence] = {
     val occurrences = selectOccurrences(sqlContext, ds, selector)
     firstSeenOccurrences(sqlContext, occurrences)
   }
 
 
-  def selectOccurrences(sqlContext: SQLContext, ds: Dataset[Occurrence], selector: (OccurrenceExt) => Boolean): Dataset[OccurrenceExt] = {
+  def selectOccurrences(sqlContext: SQLContext, ds: Dataset[Occurrence], selector: OccurrenceFilter): Dataset[Occurrence] = {
     import sqlContext.implicits._
-
-    val normalize: (Dataset[Occurrence] => Dataset[OccurrenceExt]) = {
-      _.map(occ => {
-        val startEnd = DateUtil.startEndDate(occ.eventDate)
-        OccurrenceExt(
-          lat = occ.lat, lng = occ.lng,
-          taxonPath = occ.taxonPath,
-          start = startEnd._1,
-          end = startEnd._2,
-          id = occ.id,
-          pdate = DateUtil.basicDateToUnixTime(occ.sourceDate),
-          psource = occ.source)
-      })
-    }
 
     ds
       .filter(x => DateUtil.nonEmpty(x.id))
       .filter(x => DateUtil.validDate(x.sourceDate))
       .filter(x => DateUtil.validDate(x.eventDate))
-      .transform(normalize)
       .filter(selector)
   }
 
@@ -249,13 +250,13 @@ object OccurrenceCollectionBuilder {
 
   }
 
-  def firstSeenOccurrences(sqlContext: SQLContext, occurrences: Dataset[OccurrenceExt]): Dataset[OccurrenceExt] = {
+  def firstSeenOccurrences(sqlContext: SQLContext, occurrences: Dataset[Occurrence]): Dataset[Occurrence] = {
     import sqlContext.implicits._
 
     occurrences
       .groupBy(_.id)
       .mapGroups((id, occIter) => occIter.reduce((occ, firstSeen) => {
-        if (occ.pdate < firstSeen.pdate) {
+        if (DateUtil.basicDateToUnixTime(occ.sourceDate) < DateUtil.basicDateToUnixTime(firstSeen.sourceDate)) {
           occ
         } else {
           firstSeen

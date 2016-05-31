@@ -1,8 +1,12 @@
 
 
+
+
 object OccurrenceSelectors {
 
-  def taxonSelector(config: OccurrenceSelector): OccurrenceExt => Boolean = {
+  type OccurrenceFilter = (Occurrence) => Boolean
+
+  def taxonSelector(config: OccurrenceSelector): OccurrenceFilter = {
     val selectedTaxa: Array[String] = config.taxonSelector.split("\\|")
     if (selectedTaxa.length > 0) {
       x => selectedTaxa.intersect(x.taxonPath.split("\\|")).nonEmpty
@@ -11,7 +15,7 @@ object OccurrenceSelectors {
     }
   }
 
-  def traitSelector(config: OccurrenceSelector): OccurrenceExt => Boolean = {
+  def traitSelector(config: OccurrenceSelector): OccurrenceFilter = {
     if (config.traitSelector.trim.isEmpty) {
       selectAlways
     } else {
@@ -26,18 +30,18 @@ object OccurrenceSelectors {
   }
 
 
-  val selectAlways: (OccurrenceExt) => Boolean = {
-    (x: OccurrenceExt) => true
+  val selectAlways: OccurrenceFilter = {
+    (x: Occurrence) => true
   }
 
-  val selectNever: (OccurrenceExt) => Boolean = {
-    (x: OccurrenceExt) => false
+  val selectNever: OccurrenceFilter = {
+    (x: Occurrence) => false
   }
 
-  def geoSpatialSelector(config: OccurrenceSelector): OccurrenceExt => Boolean = {
+  def geoSpatialSelector(config: OccurrenceSelector): OccurrenceFilter = {
     SpatialFilter.parseWkt(config.wktString) match {
       case Some(area) => {
-        (x: OccurrenceExt) => SpatialFilter.valuesInArea(Seq(x.lat, x.lng), area)
+        (x: Occurrence) => SpatialFilter.valuesInArea(Seq(x.lat, x.lng), area)
       }
       case _ => {
         x => false
@@ -45,7 +49,7 @@ object OccurrenceSelectors {
     }
   }
 
-  def all(config: OccurrenceSelector): OccurrenceExt => Boolean = {
+  def allSelectors(config: OccurrenceSelector): OccurrenceFilter = {
     x => Seq(traitSelector _, taxonSelector _, geoSpatialSelector _)
       .forall(_ (config)(x))
   }

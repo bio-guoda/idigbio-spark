@@ -1,24 +1,23 @@
 import org.scalatest._
+import OccurrenceSelectors._
 
 class TraitSelectorParser$Test extends FlatSpec with Matchers {
 
-  val startDate = DateUtil.startDate("2015-01-01")
-  val endDate = DateUtil.startDate("2015-01-02")
-  private val occExt: OccurrenceExt = OccurrenceExt("51", "4.1", "Plantae", "", 0L, "bla", startDate, endDate)
+  val occTest = Occurrence("51", "4.1", "Plantae", "2015-01-01/2015-01-02", "someId", "20140101", "someSource")
 
   "parser" should "produce a trait filter config with >" in {
     val selectorString: String = "eventDate > 2014-02-01 datetime"
-    parse(selectorString)(occExt) should be(true)
+    parse(selectorString)(occTest) should be(true)
   }
 
   "parser" should "produce a trait filter config with <" in {
     val selectorString: String = "eventDate < 2015-04-01 datetime"
-    parse(selectorString)(occExt) should be(true)
+    parse(selectorString)(occTest) should be(true)
   }
 
   "parser" should "produce a trait filter config with < and >" in {
     val selectorString: String = "eventDate < 2015-02-01 datetime | eventDate > 2014-01-01 datetime"
-    parse(selectorString)(occExt) should be(true)
+    parse(selectorString)(occTest) should be(true)
   }
 
   "parser" should "produce a trait filter config with < missing unit" in {
@@ -40,8 +39,7 @@ class TraitSelectorParser$Test extends FlatSpec with Matchers {
   }
 
 
-  def parse(selectorString: String): (OccurrenceExt) => Boolean = {
-    val selector = TraitSelectorParser.parse(TraitSelectorParser.config, selectorString).get
-    selector
+  def parse(selectorString: String): OccurrenceFilter = {
+    TraitSelectorParser.parse(TraitSelectorParser.config, selectorString).get
   }
 }
