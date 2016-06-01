@@ -17,7 +17,7 @@ object SpatialFilter {
 
   def parsePoint(lng: Double, lat: Double): Option[Shape] = Try {
     val ctx: SpatialContext = SpatialContext.GEO
-    ctx.makePoint(lng, lat)
+    ctx.getShapeFactory.pointXY(lng, lat)
   }.toOption
 
   def locatedIn(wktString: String, record: Map[String, String]): Boolean = {
@@ -43,8 +43,7 @@ object SpatialFilter {
       case (Some(lat), Some(lng)) =>
         parsePoint(lng, lat) match {
           case Some(point) =>
-            List(SpatialRelation.CONTAINS, SpatialRelation.INTERSECTS, SpatialRelation.WITHIN)
-              .contains(area.relate(point))
+              area.relate(point).intersects()
           case _ => false
         }
       case _ => false

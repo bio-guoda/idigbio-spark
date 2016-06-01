@@ -42,4 +42,17 @@ class SpatialFilter$Test extends FlatSpec with Matchers {
     SpatialFilter.locatedIn("GEOMETRYCOLLECTION(POLYGON ((0 56.0, 0 89.9, 31.6 89.9, 31.6 56.0, 0 56.0)))", row) shouldBe true
   }
 
+  // https://github.com/gimmefreshdata/freshdata/issues/25
+  "a polygon collection beyond [-180,180] long, covering boston and guinea" should "does *not* a point in boston and guinea" in {
+    val geometry: String = "GEOMETRYCOLLECTION(POLYGON ((-72 41, -72 43, -69 43, -69 41, -72 41)),POLYGON ((-219 -12, -219 0, -205 0, -205 -12, -219 -12)))"
+    SpatialFilter.locatedInLatLng(geometry, Seq("42.0", "-70")) shouldBe false
+    SpatialFilter.locatedInLatLng(geometry, Seq("0.0", "-210")) shouldBe false
+  }
+
+  "a polygon collection covering guinea" should "include a point in guinea, but not boston" in {
+    val geometry: String = "POLYGON ((141 -12, 141 0, 155 0, 155 -12, 141 -12))"
+    SpatialFilter.locatedInLatLng(geometry, Seq("42.0", "-70")) shouldBe false
+    SpatialFilter.locatedInLatLng(geometry, Seq("-1.0", "142")) shouldBe true
+  }
+
 }
