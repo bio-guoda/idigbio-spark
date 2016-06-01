@@ -112,7 +112,9 @@ object OccurrenceCollectionGenerator {
       })
     }
 
-    val occurrencesForCassandra = occurrenceCollection.transform(normalize)
+    val occurrencesForCassandra = occurrenceCollection
+      .transform(normalize)
+      .cache()
 
     occurrencesForCassandra.map(item => {
       (taxonSelectorString, wktString, traitSelectorString,
