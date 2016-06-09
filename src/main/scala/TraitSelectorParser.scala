@@ -23,13 +23,11 @@ object TraitSelectorParser extends RegexParsers {
   def selector: Parser[OccurrenceFilter] = term ~ operator ~ values ~ unit ^^ {
     case "eventDate" ~ ">" ~ value ~ "datetime" => {
       (x: Occurrence) => {
-        println(s"${x.eventDate} > $value")
         DateUtil.startDate(x.eventDate) > DateUtil.startDate(value)
       }
     }
     case "eventDate" ~ "<" ~ value ~ "datetime" => {
       (x: Occurrence) => {
-        println(s"${x.eventDate} < $value")
         DateUtil.endDate(x.eventDate) < DateUtil.endDate(value)
       }
     }
