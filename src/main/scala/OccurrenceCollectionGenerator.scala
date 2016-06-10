@@ -258,13 +258,8 @@ object OccurrenceCollectionBuilder {
     occurrences
       .groupBy(_.id)
       .mapGroups((id, occIter) => occIter.reduce((occ, firstSeen) => {
-        if (DateUtil.basicDateToUnixTime(occ.sourceDate) < DateUtil.basicDateToUnixTime(firstSeen.sourceDate)) {
-          occ
-        } else {
-          firstSeen
-        }
+        DateUtil.selectFirstPublished(occ, firstSeen)
       }))
   }
-
 
 }

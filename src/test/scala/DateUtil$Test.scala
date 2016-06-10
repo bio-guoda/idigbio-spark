@@ -48,6 +48,17 @@ class DateUtil$Test extends FlatSpec with Matchers {
     DateUtil.validDate("boo 2016-01-1") should be(false)
   }
 
+  "inaturalist date" should "be valid" in {
+    DateUtil.validDate("2014-10-31T14:27:00-07:00") should be(true)
+    DateUtil.validDate("20150605") should be(true)
+  }
+
+  "first published" should "select oldest occurrence" in {
+    val older = Occurrence("11.4", "12.2", "Animalia|Aves", "2013-01-01", "some id", "20150605", "some data source")
+    val younger = Occurrence("11.4", "12.2", "Animalia|Aves", "2013-01-01", "some id", "20150616", "some data source")
+    DateUtil.selectFirstPublished(older, younger) should be(older)
+  }
+
 
 
   "config2string" should "be a json object" in {

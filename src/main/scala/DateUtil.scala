@@ -61,4 +61,12 @@ object DateUtil {
     val fmt = ISODateTimeFormat.basicDate()
     fmt.withZoneUTC().parseDateTime(basicDateString).toDate.getTime
   }
+
+  def selectFirstPublished(occ: Occurrence, firstSeen: Occurrence): Occurrence = {
+    if (DateUtil.basicDateToUnixTime(occ.sourceDate) < DateUtil.basicDateToUnixTime(firstSeen.sourceDate)) {
+      occ
+    } else {
+      firstSeen
+    }
+  }
 }

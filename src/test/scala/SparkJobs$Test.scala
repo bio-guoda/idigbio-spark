@@ -245,6 +245,7 @@ class SparkJobs$Test extends TestSparkContext with DwCSparkHandler {
     collection.count() should be(18)
 
     val gbifFirstSeenOnly = firstSeenOccurrences(sqlContext, collection)
+    gbifFirstSeenOnly.first().sourceDate should be("20100101")
     gbifFirstSeenOnly.count() should be(9)
 
     val anotherCollection = selectOccurrences(sqlContext, gbifOcc, dactylisSelector)

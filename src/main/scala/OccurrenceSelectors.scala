@@ -40,12 +40,10 @@ object OccurrenceSelectors {
 
   def geoSpatialSelector(config: OccurrenceSelector): OccurrenceFilter = {
     SpatialFilter.parseWkt(config.wktString) match {
-      case Some(area) => {
+      case Some(area) =>
         (x: Occurrence) => SpatialFilter.valuesInArea(Seq(x.lat, x.lng), area)
-      }
-      case _ => {
+      case _ =>
         x => false
-      }
     }
   }
 
