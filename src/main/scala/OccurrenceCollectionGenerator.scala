@@ -16,17 +16,21 @@ case class Occurrence(lat: String,
 
 case class SelectedOccurrence(occ: Occurrence, selector: OccurrenceSelector)
 
+case class MonitoredOccurrence(source: String, id: String, taxonselector: String, wktstring: String, traitselector: String)
+
+case class FirstOccurrence(source: String, added: Long, id: String)
+
 case class OccurrenceCassandra(lat: String,
                                lng: String,
-                               taxonPath: String,
+                               taxon: String,
                                id: String,
-                               pdate: Long,
-                               psource: String,
+                               added: Long,
+                               source: String,
                                start: Long,
                                end: Long,
-                               taxonSelector: String,
-                               wktString: String,
-                               traitSelector: String)
+                               taxonselector: String,
+                               wktstring: String,
+                               traitselector: String)
 
 case class OccurrenceSelector(taxonSelector: String = "", wktString: String = "", traitSelector: String = "")
 
@@ -116,37 +120,45 @@ object OccurrenceCollectionGenerator {
         val occ = selectedOcc.occ
         val startEnd = DateUtil.startEndDate(occ.eventDate)
         OccurrenceCassandra(
-          taxonSelector = selectedOcc.selector.taxonSelector,
-          wktString = selectedOcc.selector.wktString,
-          traitSelector = selectedOcc.selector.traitSelector,
+          taxonselector = selectedOcc.selector.taxonSelector,
+          wktstring = selectedOcc.selector.wktString,
+          traitselector = selectedOcc.selector.traitSelector,
           lat = occ.lat, lng = occ.lng,
-          taxonPath = occ.taxonPath,
+          taxon = occ.taxonPath,
           start = startEnd._1,
           end = startEnd._2,
           id = occ.id,
-          pdate = DateUtil.basicDateToUnixTime(occ.sourceDate),
-          psource = occ.source)
+          added = DateUtil.basicDateToUnixTime(occ.sourceDate),
+          source = occ.source)
       })
     }
 
     val occurrencesForCassandra = occurrenceCollection
       .transform(normalize)
 
-    occurrencesForCassandra.map(item => {
-      (item.taxonSelector, item.wktString, item.traitSelector,
-        item.taxonPath, item.lat, item.lng,
-        item.start, item.end,
-        item.id,
-        item.pdate, item.psource)
-    }).rdd.saveToCassandra("effechecka", "occurrence_collection", CassandraUtil.occurrenceCollectionColumns)
+    occurrencesForCassandra.toDF()
+      .write
+      .format("org.apache.spark.sql.cassandra")
+      .options(Map("table" -> "occurrence_collection", "keyspace" -> "effechecka"))
+      .save()
+
 
     occurrencesForCassandra.map(item => {
-      (item.psource, item.id, item.taxonSelector, item.wktString, item.traitSelector)
-    }).rdd.saveToCassandra("effechecka", "occurrence_search", CassandraUtil.occurrenceSearchColumns)
+      MonitoredOccurrence(source = item.source, id = item.id, taxonselector = item.taxonselector, wktstring = item.wktstring, traitselector = item.traitselector)
+    }).toDF()
+      .write
+      .format("org.apache.spark.sql.cassandra")
+      .options(Map("table" -> "occurrence_search", "keyspace" -> "effechecka"))
+      .save()
+
 
     occurrencesForCassandra.map(item => {
-      (item.psource, item.pdate, item.id)
-    }).rdd.saveToCassandra("effechecka", "occurrence_first_added_search", CassandraUtil.occurrenceFirstAddedSearchColumns)
+      FirstOccurrence(source = item.source, added = item.added, id = item.id)
+    }).toDF()
+      .write
+      .format("org.apache.spark.sql.cassandra")
+      .options(Map("table" -> "occurrence_first_added_search", "keyspace" -> "effechecka"))
+      .save()
 
     occurrenceSelectors.foreach(selector => {
       val countBySelector: Long = occurrenceCollection.filter(_.selector == selector).count()
