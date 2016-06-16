@@ -25,6 +25,7 @@ case class ChecklistConf(occurrenceFiles: Seq[String] = Seq()
                          , taxonSelector: Seq[String] = Seq()
                          , geoSpatialSelector: String = ""
                          , outputFormat: String = "cassandra"
+                         , applyAllSelectors: Boolean = false
                          , firstSeenOnly: Boolean = true)
 
 object ChecklistGenerator {
@@ -152,10 +153,10 @@ object ChecklistGenerator {
         c.copy(traitFiles = splitAndClean(x))
       } text "list of trait archive urls"
 
-      arg[String]("<taxon selectors>") required() action { (x, c) =>
+      arg[String]("<taxon selectors>") optional() action { (x, c) =>
         c.copy(taxonSelector = splitAndClean(x))
       } text "pipe separated list of taxon names"
-      arg[String]("<geospatial selector>") required() action { (x, c) =>
+      arg[String]("<geospatial selector>") optional() action { (x, c) =>
         c.copy(geoSpatialSelector = x.trim)
       } text "WKT string specifying an geospatial area of interest"
       arg[String]("trait selectors") optional() action { (x, c) =>

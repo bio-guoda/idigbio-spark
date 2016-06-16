@@ -179,6 +179,21 @@ class SparkJobs$Test extends TestSparkContext with DwCSparkHandler {
     sc.parallelize(Seq(("bla|bla", "something", "trait|anotherTrait", "running", 123L))).saveToCassandra("effechecka", "checklist_registry", CassandraUtil.checklistRegistryColumns)
   }
 
+  "occurrence selectors" should "be loaded from cassandra" in {
+    prepareCassandra
+    val someSelectors = Seq(("Mammalia|Insecta", "LINE(1 2 3 4)", "bodyMass greaterThan 19 g", "status", 1)
+      , ("Mammalia|Insecta", "LINE(1 2 3 4)", "bodyMass greaterThan 20 g", "other status", 1))
+
+    val selectorsBefore: Seq[OccurrenceSelector] = OccurrenceCollectionGenerator.occurrenceSelectorsFor(ChecklistConf(applyAllSelectors = true), sc)
+    selectorsBefore.length should be(0)
+
+    sc.parallelize(someSelectors).saveToCassandra("effechecka", "occurrence_collection_registry", CassandraUtil.occurrenceCollectionRegistryColumns)
+
+    val selectorsAfter: Seq[OccurrenceSelector] = OccurrenceCollectionGenerator.occurrenceSelectorsFor(ChecklistConf(applyAllSelectors = true), sc)
+    selectorsAfter should contain(OccurrenceSelector("Mammalia|Insecta", "LINE(1 2 3 4)", "bodyMass greaterThan 20 g"))
+    selectorsAfter should contain(OccurrenceSelector("Mammalia|Insecta", "LINE(1 2 3 4)", "bodyMass greaterThan 19 g"))
+  }
+
   def prepareCassandra = {
     try {
       CassandraConnector(sc.getConf).withSessionDo { session =>
@@ -188,6 +203,7 @@ class SparkJobs$Test extends TestSparkContext with DwCSparkHandler {
         session.execute(CassandraUtil.occurrenceCollectionTableCreate)
         session.execute(CassandraUtil.occurrenceCollectionRegistryTableCreate)
         session.execute(s"TRUNCATE effechecka.checklist")
+        session.execute(s"TRUNCATE effechecka.occurrence_collection_registry")
       }
     } catch {
       case e: IOException => {
@@ -323,7 +339,7 @@ class SparkJobs$Test extends TestSparkContext with DwCSparkHandler {
     val selector = OccurrenceSelector("some taxonselector", "some wktstring", "some traitselector")
     val occurrences = Seq(SelectedOccurrence(Occurrence("11.4", "12.2", "Animalia|Aves", "2013-01-01", "some id", "20140101", "some data source"), selector))
 
-    OccurrenceCollectionGenerator.saveCollectionToCassandra(sc,
+    OccurrenceCollectionGenerator.saveCollectionToCassandra(sqlContext,
       occurrenceSelectors = Seq(selector),
       occurrenceCollection = sqlContext.createDataset(occurrences))
 
