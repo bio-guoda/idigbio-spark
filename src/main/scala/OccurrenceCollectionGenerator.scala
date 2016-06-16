@@ -1,7 +1,7 @@
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.sql.cassandra.CassandraSQLContext
 import org.apache.spark.sql.functions._
-import org.apache.spark.sql.{Dataset, DataFrame, SQLContext}
+import org.apache.spark.sql.{SaveMode, Dataset, DataFrame, SQLContext}
 import org.apache.spark.{SparkConf, SparkContext}
 import com.datastax.spark.connector.cql.CassandraConnector
 import com.datastax.spark.connector._
@@ -140,6 +140,7 @@ object OccurrenceCollectionGenerator {
       .write
       .format("org.apache.spark.sql.cassandra")
       .options(Map("table" -> "occurrence_collection", "keyspace" -> "effechecka"))
+      .mode(SaveMode.Append)
       .save()
 
 
@@ -149,6 +150,7 @@ object OccurrenceCollectionGenerator {
       .write
       .format("org.apache.spark.sql.cassandra")
       .options(Map("table" -> "occurrence_search", "keyspace" -> "effechecka"))
+      .mode(SaveMode.Append)
       .save()
 
 
@@ -158,6 +160,7 @@ object OccurrenceCollectionGenerator {
       .write
       .format("org.apache.spark.sql.cassandra")
       .options(Map("table" -> "occurrence_first_added_search", "keyspace" -> "effechecka"))
+      .mode(SaveMode.Append)
       .save()
 
     occurrenceSelectors.foreach(selector => {
