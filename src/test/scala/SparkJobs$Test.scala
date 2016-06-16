@@ -207,8 +207,8 @@ class SparkJobs$Test extends TestSparkContext with DwCSparkHandler {
     sc.parallelize(otherLines).saveToCassandra("effechecka", "occurrence_collection", CassandraUtil.occurrenceCollectionColumns)
   }
 
-  def plantaeSelector = OccurrenceSelectors.allSelectors(OccurrenceSelector("Plantae", "ENVELOPE(4,5,52,50)", ""))
-  def dactylisSelector = OccurrenceSelectors.allSelectors(OccurrenceSelector("Dactylis", "ENVELOPE(4,5,52,50)", ""))
+  def plantaeSelector = Seq(OccurrenceSelector("Plantae", "ENVELOPE(4,5,52,50)", ""))
+  def dactylisSelector = Seq(OccurrenceSelector("Dactylis", "ENVELOPE(4,5,52,50)", ""))
 
   "apply occurrence filter to gbif sample" should "select a few occurrences" in {
     val sqlContext = new SQLContext(sc)
@@ -219,7 +219,7 @@ class SparkJobs$Test extends TestSparkContext with DwCSparkHandler {
     val collection = selectOccurrences(sqlContext, gbifOcc, plantaeSelector)
 
     collection.count() should be(9)
-    collection.first().lat should be("51.94536")
+    collection.first().occ.lat should be("51.94536")
 
 
     val anotherCollection = selectOccurrences(sqlContext, gbifOcc, dactylisSelector)
@@ -245,7 +245,7 @@ class SparkJobs$Test extends TestSparkContext with DwCSparkHandler {
     collection.count() should be(18)
 
     val gbifFirstSeenOnly = firstSeenOccurrences(sqlContext, collection)
-    gbifFirstSeenOnly.first().sourceDate should be("20100101")
+    gbifFirstSeenOnly.first().occ.sourceDate should be("20100101")
     gbifFirstSeenOnly.count() should be(9)
 
     val anotherCollection = selectOccurrences(sqlContext, gbifOcc, dactylisSelector)
@@ -257,13 +257,13 @@ class SparkJobs$Test extends TestSparkContext with DwCSparkHandler {
     val idigbio = readDwC.last._2
     val sqlContext = new SQLContext(sc)
 
-    val selectors = allSelectors(OccurrenceSelector("Animalia", "ENVELOPE(-100,-90,40,30)", ""))
+    val selectors = Seq(OccurrenceSelector("Animalia", "ENVELOPE(-100,-90,40,30)", ""))
     val collection = buildOccurrenceCollection(sc, toOccurrenceDS(sqlContext, idigbio), selectors)
 
     collection.count() should be(1)
-    collection.first().lat should be("33.4519400")
+    collection.first().occ.lat should be("33.4519400")
 
-    val otherSelectors = allSelectors(OccurrenceSelector("Crurithyris", "ENVELOPE(-100,-90,40,30)", ""))
+    val otherSelectors = Seq(OccurrenceSelector("Crurithyris", "ENVELOPE(-100,-90,40,30)", ""))
 
     val anotherCollection = buildOccurrenceCollection(sc, toOccurrenceDS(sqlContext, idigbio), otherSelectors)
 
@@ -320,10 +320,11 @@ class SparkJobs$Test extends TestSparkContext with DwCSparkHandler {
         fail("failed to connect to cassandra. do you have it running?", e)
       }
     }
-    val occurrences = Seq(Occurrence("11.4", "12.2", "Animalia|Aves", "2013-01-01", "some id", "20140101", "some data source"))
+    val selector = OccurrenceSelector("some taxonselector", "some wktstring", "some traitselector")
+    val occurrences = Seq(SelectedOccurrence(Occurrence("11.4", "12.2", "Animalia|Aves", "2013-01-01", "some id", "20140101", "some data source"), selector))
 
     OccurrenceCollectionGenerator.saveCollectionToCassandra(sc,
-      occurrenceSelector = OccurrenceSelector("some taxonselector", "some wktstring", "some traitselector"),
+      occurrenceSelectors = Seq(selector),
       occurrenceCollection = sqlContext.createDataset(occurrences))
 
     val df = sqlContext
