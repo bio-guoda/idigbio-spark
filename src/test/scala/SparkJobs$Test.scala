@@ -256,13 +256,16 @@ class SparkJobs$Test extends TestSparkContext with DwCSparkHandler {
 
     val gbifOcc: Dataset[Occurrence] = toOccurrenceDS(sqlContext, gbif)
 
-    val collection = selectOccurrences(sqlContext, gbifOcc, plantaeSelector)
+    val twoSelectors = Seq(OccurrenceSelector("Plantae", "ENVELOPE(4,5,52,50)", ""),
+      OccurrenceSelector("Plantae", "ENVELOPE(4.1,5,52,50)", ""))
 
-    collection.count() should be(18)
+    val collection = selectOccurrences(sqlContext, gbifOcc, twoSelectors)
+
+    collection.count() should be(36)
 
     val gbifFirstSeenOnly = firstSeenOccurrences(sqlContext, collection)
     gbifFirstSeenOnly.first().occ.sourceDate should be("20100101")
-    gbifFirstSeenOnly.count() should be(9)
+    gbifFirstSeenOnly.count() should be(18)
 
     val anotherCollection = selectOccurrences(sqlContext, gbifOcc, dactylisSelector)
     anotherCollection.count() should be(2)

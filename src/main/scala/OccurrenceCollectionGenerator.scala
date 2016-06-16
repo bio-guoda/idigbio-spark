@@ -252,7 +252,7 @@ object OccurrenceCollectionBuilder {
       .filter(x => DateUtil.validDate(x.sourceDate))
       .filter(x => DateUtil.validDate(x.eventDate))
       .flatMap(x => selectors.flatMap(selector => {
-        if (OccurrenceSelectors.allSelectors(selector)(x)) {
+        if (OccurrenceSelectors.apply(selector)(x)) {
           Some(SelectedOccurrence(occ = x, selector = selector))
         } else {
           None
@@ -287,10 +287,10 @@ object OccurrenceCollectionBuilder {
     import sqlContext.implicits._
 
     occurrences
-      .groupBy(_.occ.id)
-      .mapGroups((id, occIter) => occIter.reduce((occ, firstSeen) => {
-        SelectedOccurrence(occ = DateUtil.selectFirstPublished(occ.occ, firstSeen.occ), selector = occ.selector)
-      }))
+      .groupBy($"occ.id", $"selector.taxonSelector", $"selector.wktString", $"selector.traitSelector")
+      .reduce((selected: SelectedOccurrence, firstSelected: SelectedOccurrence) => {
+        SelectedOccurrence(DateUtil.selectFirstPublished(selected.occ, firstSelected.occ), firstSelected.selector)
+      }).map(_._2)
   }
 
 }

@@ -47,7 +47,7 @@ object OccurrenceSelectors {
     }
   }
 
-  def allSelectors(config: OccurrenceSelector): OccurrenceFilter = {
+  def apply(config: OccurrenceSelector): OccurrenceFilter = {
     x => Seq(traitSelector _, taxonSelector _, geoSpatialSelector _)
       .forall(_ (config)(x))
   }

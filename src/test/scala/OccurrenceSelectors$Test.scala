@@ -4,7 +4,7 @@ import OccurrenceSelectors._
 class OccurrenceSelectors$Test extends FlatSpec with Matchers {
 
   "a taxon filter" should "filter taxa" in {
-    val selectors = allSelectors(OccurrenceSelector("Plantae", "ENVELOPE(4,5,52,50)", ""))
+    val selectors = apply(OccurrenceSelector("Plantae", "ENVELOPE(4,5,52,50)", ""))
     val matching = Occurrence("51", "4.1", "Plantae", "2015-01-01", "someId", "20140101", "someSource")
     selectors(matching) should be(true)
 
