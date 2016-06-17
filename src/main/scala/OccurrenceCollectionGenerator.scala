@@ -41,6 +41,9 @@ object OccurrenceCollectionGenerator {
 
     val conf = new SparkConf()
       .set("spark.cassandra.connection.host", "localhost")
+      .set("spark.cassandra.output.batch.grouping.key", "None")
+      .set("spark.cassandra.output.batch.size.rows", "10")
+      .set("spark.cassandra.output.batch.size.bytes", "2048")
       .setAppName("occ2collection")
 
     val sc = new SparkContext(conf)
