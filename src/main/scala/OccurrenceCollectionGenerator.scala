@@ -44,7 +44,10 @@ object OccurrenceCollectionGenerator {
       .set("spark.cassandra.output.batch.grouping.key", "None")
       .set("spark.cassandra.output.batch.size.rows", "10")
       .set("spark.cassandra.output.batch.size.bytes", "2048")
+      .set("spark.cassandra.output.throughput_mb_per_sec", "5") // see https://www.instaclustr.com/blog/2016/03/31/cassandra-connector-for-spark-5-tips-for-success/
       .setAppName("occ2collection")
+
+
 
     val sc = new SparkContext(conf)
     val occurrenceSelectors = occurrenceSelectorsFor(config, sc)
@@ -144,6 +147,7 @@ object OccurrenceCollectionGenerator {
     import sqlContext.implicits._
 
     CassandraConnector(sqlContext.sparkContext.getConf).withSessionDo { session =>
+      session.getCluster.getConfiguration.getQueryOptions
       session.execute(CassandraUtil.checklistKeySpaceCreate)
       session.execute(CassandraUtil.occurrenceCollectionRegistryTableCreate)
       session.execute(CassandraUtil.occurrenceCollectionTableCreate)
