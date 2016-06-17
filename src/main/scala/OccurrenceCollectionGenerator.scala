@@ -89,6 +89,7 @@ object OccurrenceCollectionGenerator {
     config.outputFormat.trim match {
       case "cassandra" =>
         selectors.value.foreach(selector => {
+          println(s"saving [$selector]")
           val occForSelector = normalizedOccurrenceCollection.filter(occ =>
                       occ.taxonselector == selector.taxonSelector
                         && occ.wktstring == selector.wktString
