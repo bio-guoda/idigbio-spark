@@ -65,11 +65,36 @@ object OccurrenceCollectionGenerator {
       applySelectors(sqlContext, ds, selectors.value)
     })
 
-    occurrenceCollection.cache()
+    val normalize: (Dataset[SelectedOccurrence] => Dataset[OccurrenceCassandra]) = {
+      _.map(selectedOcc => {
+        val occ = selectedOcc.occ
+        val startEnd = DateUtil.startEndDate(occ.eventDate)
+        OccurrenceCassandra(
+          taxonselector = selectedOcc.selector.taxonSelector,
+          wktstring = selectedOcc.selector.wktString,
+          traitselector = selectedOcc.selector.traitSelector,
+          lat = occ.lat, lng = occ.lng,
+          taxon = occ.taxonPath,
+          start = startEnd._1,
+          end = startEnd._2,
+          id = occ.id,
+          added = DateUtil.basicDateToUnixTime(occ.sourceDate),
+          source = occ.source)
+      })
+    }
+
+    val normalizedOccurrenceCollection = occurrenceCollection
+          .transform(normalize).cache()
 
     config.outputFormat.trim match {
       case "cassandra" =>
-        saveCollectionToCassandra(sqlContext, selectors.value, occurrenceCollection)
+        selectors.value.foreach(selector => {
+          val countBySelector: Long = occurrenceCollection.filter(_.selector == selector).count()
+          sqlContext.sparkContext.parallelize(Seq((selector.taxonSelector, selector.wktString, selector.traitSelector, "ready", countBySelector)))
+            .saveToCassandra("effechecka", "occurrence_collection_registry", CassandraUtil.occurrenceCollectionRegistryColumns)
+        }
+        )
+        saveCollectionToCassandra(sqlContext, normalizedOccurrenceCollection)
       case _ =>
         println(s"unsupported output format [${config.outputFormat}]")
     }
@@ -107,7 +132,7 @@ object OccurrenceCollectionGenerator {
     OccurrenceSelector(taxonSelectorString, wktString, traitSelectorString)
   }
 
-  def saveCollectionToCassandra(sqlContext: SQLContext, occurrenceSelectors: Seq[OccurrenceSelector], occurrenceCollection: Dataset[SelectedOccurrence]): Unit = {
+  def saveCollectionToCassandra(sqlContext: SQLContext, occurrenceCollection: Dataset[OccurrenceCassandra]): Unit = {
     import sqlContext.implicits._
 
     CassandraConnector(sqlContext.sparkContext.getConf).withSessionDo { session =>
@@ -118,28 +143,7 @@ object OccurrenceCollectionGenerator {
       session.execute(CassandraUtil.occurrenceFirstAddedSearchTableCreate)
     }
 
-    val normalize: (Dataset[SelectedOccurrence] => Dataset[OccurrenceCassandra]) = {
-      _.map(selectedOcc => {
-        val occ = selectedOcc.occ
-        val startEnd = DateUtil.startEndDate(occ.eventDate)
-        OccurrenceCassandra(
-          taxonselector = selectedOcc.selector.taxonSelector,
-          wktstring = selectedOcc.selector.wktString,
-          traitselector = selectedOcc.selector.traitSelector,
-          lat = occ.lat, lng = occ.lng,
-          taxon = occ.taxonPath,
-          start = startEnd._1,
-          end = startEnd._2,
-          id = occ.id,
-          added = DateUtil.basicDateToUnixTime(occ.sourceDate),
-          source = occ.source)
-      })
-    }
-
-    val occurrencesForCassandra = occurrenceCollection
-      .transform(normalize)
-
-    occurrencesForCassandra.toDF()
+    occurrenceCollection.toDF()
       .write
       .format("org.apache.spark.sql.cassandra")
       .options(Map("table" -> "occurrence_collection", "keyspace" -> "effechecka"))
@@ -147,8 +151,12 @@ object OccurrenceCollectionGenerator {
       .save()
 
 
-    occurrencesForCassandra.map(item => {
-      MonitoredOccurrence(source = item.source, id = item.id, taxonselector = item.taxonselector, wktstring = item.wktstring, traitselector = item.traitselector)
+    occurrenceCollection.map(item => {
+      MonitoredOccurrence(source = item.source,
+        id = item.id,
+        taxonselector = item.taxonselector,
+        wktstring = item.wktstring,
+        traitselector = item.traitselector)
     }).toDF()
       .write
       .format("org.apache.spark.sql.cassandra")
@@ -157,7 +165,7 @@ object OccurrenceCollectionGenerator {
       .save()
 
 
-    occurrencesForCassandra.map(item => {
+    occurrenceCollection.map(item => {
       FirstOccurrence(source = item.source, added = item.added, id = item.id)
     }).toDF()
       .write
@@ -166,12 +174,6 @@ object OccurrenceCollectionGenerator {
       .mode(SaveMode.Append)
       .save()
 
-    occurrenceSelectors.foreach(selector => {
-      val countBySelector: Long = occurrenceCollection.filter(_.selector == selector).count()
-      sqlContext.sparkContext.parallelize(Seq((selector.taxonSelector, selector.wktString, selector.traitSelector, "ready", countBySelector)))
-        .saveToCassandra("effechecka", "occurrence_collection_registry", CassandraUtil.occurrenceCollectionRegistryColumns)
-    }
-    )
 
   }
 

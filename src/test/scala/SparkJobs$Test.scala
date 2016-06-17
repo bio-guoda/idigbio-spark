@@ -339,11 +339,12 @@ class SparkJobs$Test extends TestSparkContext with DwCSparkHandler {
         fail("failed to connect to cassandra. do you have it running?", e)
       }
     }
-    val selector = OccurrenceSelector("some taxonselector", "some wktstring", "some traitselector")
-    val occurrences = Seq(SelectedOccurrence(Occurrence("11.4", "12.2", "Animalia|Aves", "2013-01-01", "some id", "20140101", "some data source"), selector))
+    val occurrences = Seq(OccurrenceCassandra(lat = "11.4", lng = "12.2",
+      taxon = "Animalia|Aves", added = 123L, start = 44L, end = 55L,
+      id = "some id", source = "some data source",
+      taxonselector = "some taxonselector", wktstring = "some wktstring", traitselector = "some traitselector"))
 
     OccurrenceCollectionGenerator.saveCollectionToCassandra(sqlContext,
-      occurrenceSelectors = Seq(selector),
       occurrenceCollection = sqlContext.createDataset(occurrences))
 
     val df = sqlContext
