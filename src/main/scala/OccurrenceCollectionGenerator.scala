@@ -1,9 +1,10 @@
+import com.datastax.spark.connector.writer.{TTLOption, WriteConf}
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.sql.cassandra.CassandraSQLContext
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.{SaveMode, Dataset, DataFrame, SQLContext}
 import org.apache.spark.{SparkConf, SparkContext}
-import com.datastax.spark.connector.cql.CassandraConnector
+import com.datastax.spark.connector.cql.{CassandraConnectorConf, CassandraConnector}
 import com.datastax.spark.connector._
 
 case class Occurrence(lat: String,
@@ -94,15 +95,16 @@ object OccurrenceCollectionGenerator {
         selectors.value.foreach(selector => {
           println(s"saving [$selector]")
           val occForSelector = normalizedOccurrenceCollection.filter(occ =>
-                      occ.taxonselector == selector.taxonSelector
-                        && occ.wktstring == selector.wktString
-                        && occ.traitselector == selector.traitSelector)
+            occ.taxonselector == selector.taxonSelector
+              && occ.wktstring == selector.wktString
+              && occ.traitselector == selector.traitSelector)
 
           saveCollectionToCassandra(sqlContext, occForSelector)
 
           val countBySelector: Long = occForSelector.count()
           sqlContext.sparkContext.parallelize(Seq((selector.taxonSelector, selector.wktString, selector.traitSelector, "ready", countBySelector)))
-            .saveToCassandra("effechecka", "occurrence_collection_registry", CassandraUtil.occurrenceCollectionRegistryColumns)
+            .saveToCassandra("effechecka", "occurrence_collection_registry",
+              CassandraUtil.occurrenceCollectionRegistryColumns, writeConf = ttlConfig)
         }
         )
 
@@ -110,6 +112,10 @@ object OccurrenceCollectionGenerator {
         println(s"unsupported output format [${config.outputFormat}]")
     }
 
+  }
+
+  def ttlConfig: WriteConf = {
+    WriteConf(ttl = TTLOption.constant(days180))
   }
 
   def occurrenceSelectorsFor(config: ChecklistConf, sc: SparkContext): Seq[OccurrenceSelector] = {
@@ -159,6 +165,7 @@ object OccurrenceCollectionGenerator {
       .write
       .format("org.apache.spark.sql.cassandra")
       .options(Map("table" -> "occurrence_collection", "keyspace" -> "effechecka"))
+      .options(ttlConfig)
       .mode(SaveMode.Append)
       .save()
 
@@ -173,6 +180,7 @@ object OccurrenceCollectionGenerator {
       .write
       .format("org.apache.spark.sql.cassandra")
       .options(Map("table" -> "occurrence_search", "keyspace" -> "effechecka"))
+      .options(ttlConfig)
       .mode(SaveMode.Append)
       .save()
 
@@ -183,6 +191,7 @@ object OccurrenceCollectionGenerator {
       .write
       .format("org.apache.spark.sql.cassandra")
       .options(Map("table" -> "occurrence_first_added_search", "keyspace" -> "effechecka"))
+      .options(ttlConfig)
       .mode(SaveMode.Append)
       .save()
 
