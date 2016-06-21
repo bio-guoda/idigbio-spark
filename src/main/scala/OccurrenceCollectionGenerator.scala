@@ -1,10 +1,9 @@
-import com.datastax.spark.connector.writer.{TTLOption, WriteConf}
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.sql.cassandra.CassandraSQLContext
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.{SaveMode, Dataset, DataFrame, SQLContext}
 import org.apache.spark.{SparkConf, SparkContext}
-import com.datastax.spark.connector.cql.{CassandraConnectorConf, CassandraConnector}
+import com.datastax.spark.connector.cql.CassandraConnector
 import com.datastax.spark.connector._
 
 import scala.collection.JavaConversions
@@ -35,7 +34,7 @@ case class OccurrenceCassandra(lat: String,
                                wktstring: String,
                                traitselector: String)
 
-case class OccurrenceSelector(taxonSelector: String = "", wktString: String = "", traitSelector: String = "", ttlSeconds: Option[Long] = None)
+case class OccurrenceSelector(taxonSelector: String = "", wktString: String = "", traitSelector: String = "", ttlSeconds: Option[Int] = None)
 
 object OccurrenceCollectionGenerator {
 
@@ -148,7 +147,7 @@ object OccurrenceCollectionGenerator {
         val ttlSeconds = if (row.isNull(3)) {
           None
         } else {
-          Some(row.getLong(3))
+          Some(row.getInt(3))
         }
         OccurrenceSelector(row.getString(0), row.getString(1), row.getString(2), ttlSeconds)
       }
@@ -173,7 +172,7 @@ object OccurrenceCollectionGenerator {
     OccurrenceSelector(taxonSelectorString, wktString, traitSelectorString)
   }
 
-  def saveCollectionToCassandra(sqlContext: SQLContext, occurrenceCollection: Dataset[OccurrenceCassandra], ttl: Option[Long] = None): Unit = {
+  def saveCollectionToCassandra(sqlContext: SQLContext, occurrenceCollection: Dataset[OccurrenceCassandra], ttl: Option[Int] = None): Unit = {
     import sqlContext.implicits._
 
     CassandraConnector(sqlContext.sparkContext.getConf).withSessionDo { session =>

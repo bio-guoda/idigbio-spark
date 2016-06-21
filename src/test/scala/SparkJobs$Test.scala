@@ -10,7 +10,7 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.{DataFrame, Dataset, Row, SQLContext}
 import org.scalatest._
-
+import org.scalatest.OptionValues._
 
 trait TestSparkContext extends FlatSpec with Matchers with BeforeAndAfter with SharedSparkContext {
 
@@ -190,12 +190,16 @@ class SparkJobs$Test extends TestSparkContext with DwCSparkHandler {
       session.execute(s"INSERT INTO effechecka.monitors (taxonselector, wktstring, traitselector, accessed_at) VALUES " +
         s"('Mammalia|Insecta','LINE(1 2 3 4)','bodyMass greaterThan 19 g', dateOf(NOW()))")
       session.execute(s"INSERT INTO effechecka.monitors (taxonselector, wktstring, traitselector, accessed_at) VALUES " +
-        s"('Mammalia|Insecta','LINE(1 2 3 4)','bodyMass greaterThan 20 g', dateOf(NOW()))")
+        s"('Mammalia|Insecta','LINE(1 2 3 4)','bodyMass greaterThan 20 g', dateOf(NOW())) USING TTL 100")
     }
 
     val selectorsAfter: Seq[OccurrenceSelector] = OccurrenceCollectionGenerator.occurrenceSelectorsFor(ChecklistConf(applyAllSelectors = true), sc)
-    selectorsAfter should contain(OccurrenceSelector("Mammalia|Insecta", "LINE(1 2 3 4)", "bodyMass greaterThan 20 g"))
     selectorsAfter should contain(OccurrenceSelector("Mammalia|Insecta", "LINE(1 2 3 4)", "bodyMass greaterThan 19 g"))
+    selectorsAfter should not contain(OccurrenceSelector("Mammalia|Insecta", "LINE(1 2 3 4)", "bodyMass greaterThan 20 g"))
+
+    val firstWithTtl = selectorsAfter.filter(_.ttlSeconds.isDefined).head
+    firstWithTtl.traitSelector should be("bodyMass greaterThan 20 g")
+    firstWithTtl.ttlSeconds.value should be < 101
   }
 
   def prepareCassandra = {
