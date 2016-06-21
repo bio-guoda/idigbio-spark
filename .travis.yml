@@ -1,7 +1,7 @@
 language: scala
 scala:
   - 2.10.5
-sudo: false
+sudo: required
 services:
   - cassandra
 cache:
