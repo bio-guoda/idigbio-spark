@@ -52,8 +52,7 @@ object OccurrenceCollectionGenerator {
 
 
     val sc = new SparkContext(conf)
-    val parallelSelectors = sc.parallelize(occurrenceSelectorsFor(config, sc)).collect()
-    val selectors: Broadcast[Seq[OccurrenceSelector]] = sc.broadcast(parallelSelectors)
+    val selectorRDD = sc.parallelize(occurrenceSelectorsFor(config, sc))
 
     val applySelectors = {
       if (config.firstSeenOnly) {
@@ -66,7 +65,7 @@ object OccurrenceCollectionGenerator {
     val sqlContext = SQLContextSingleton.getInstance(sc)
     import sqlContext.implicits._
     val occurrenceCollection = load(occurrenceFile, sqlContext).transform[SelectedOccurrence]({ ds =>
-      applySelectors(sqlContext, ds, selectors.value)
+      applySelectors(sqlContext, ds, selectorRDD.collect())
     })
 
     val normalize: (Dataset[SelectedOccurrence] => Dataset[OccurrenceCassandra]) = {
@@ -94,7 +93,7 @@ object OccurrenceCollectionGenerator {
       case "cassandra" =>
         initCassandra(sqlContext)
 
-        selectors.value.foreach(selector => {
+        selectorRDD.foreach(selector => {
           println(s"saving [$selector]....")
           val occForSelector = normalizedOccurrenceCollection.filter(occ =>
             occ.taxonselector == selector.taxonSelector
