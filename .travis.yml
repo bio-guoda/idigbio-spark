@@ -2,10 +2,9 @@ language: scala
 scala:
   - 2.10.5
 sudo: required
-services:
-  - cassandra
 before_install:
-  - /var/lib/cassandra/bin/cassandra -v
+  - sudo rm -rf /var/lib/cassandra/*
+  - wget http://www.us.apache.org/dist/cassandra/1.2.18/apache-cassandra-1.2.18-bin.tar.gz && tar -xvzf apache-cassandra-1.2.18-bin.tar.gz && sudo sh apache-cassandra-1.2.18/bin/cassandra
 cache:
   directories:
       - $HOME/.ivy2
