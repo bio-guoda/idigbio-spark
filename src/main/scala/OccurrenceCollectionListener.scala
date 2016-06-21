@@ -12,7 +12,7 @@ case class MonitorSelector(taxonSelector: String, wktString: String, traitSelect
 case class MonitorStatus(selector: OccurrenceSelector, status: String, percentComplete: Double, eta: Long)
 
 object MonitorStatusJsonProtocol extends DefaultJsonProtocol {
-  implicit val monitorSelectorFormat = jsonFormat3(OccurrenceSelector)
+  implicit val monitorSelectorFormat = jsonFormat4(OccurrenceSelector)
   implicit val monitorStatusFormat = jsonFormat4(MonitorStatus)
 }
 

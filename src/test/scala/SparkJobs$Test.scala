@@ -1,7 +1,6 @@
 import java.io.IOException
 
 import OccurrenceCollectionBuilder._
-import OccurrenceSelectors._
 import au.com.bytecode.opencsv.CSVParser
 import com.datastax.spark.connector._
 import com.datastax.spark.connector.cql.CassandraConnector
@@ -187,7 +186,12 @@ class SparkJobs$Test extends TestSparkContext with DwCSparkHandler {
     val selectorsBefore: Seq[OccurrenceSelector] = OccurrenceCollectionGenerator.occurrenceSelectorsFor(ChecklistConf(applyAllSelectors = true), sc)
     selectorsBefore.length should be(0)
 
-    sc.parallelize(someSelectors).saveToCassandra("effechecka", "occurrence_collection_registry", CassandraUtil.occurrenceCollectionRegistryColumns)
+    CassandraConnector(sc.getConf).withSessionDo { session =>
+      session.execute(s"INSERT INTO effechecka.monitors (taxonselector, wktstring, traitselector, accessed_at) VALUES " +
+        s"('Mammalia|Insecta','LINE(1 2 3 4)','bodyMass greaterThan 19 g', dateOf(NOW()))")
+      session.execute(s"INSERT INTO effechecka.monitors (taxonselector, wktstring, traitselector, accessed_at) VALUES " +
+        s"('Mammalia|Insecta','LINE(1 2 3 4)','bodyMass greaterThan 20 g', dateOf(NOW()))")
+    }
 
     val selectorsAfter: Seq[OccurrenceSelector] = OccurrenceCollectionGenerator.occurrenceSelectorsFor(ChecklistConf(applyAllSelectors = true), sc)
     selectorsAfter should contain(OccurrenceSelector("Mammalia|Insecta", "LINE(1 2 3 4)", "bodyMass greaterThan 20 g"))
@@ -196,13 +200,11 @@ class SparkJobs$Test extends TestSparkContext with DwCSparkHandler {
 
   def prepareCassandra = {
     try {
+      println("preparing cassandra...")
+      OccurrenceCollectionGenerator.initCassandra(new SQLContext(sc))
       CassandraConnector(sc.getConf).withSessionDo { session =>
-        session.execute(CassandraUtil.checklistKeySpaceCreate)
-        session.execute(CassandraUtil.checklistTableCreate)
-        session.execute(CassandraUtil.checklistRegistryTableCreate)
-        session.execute(CassandraUtil.occurrenceCollectionTableCreate)
-        session.execute(CassandraUtil.occurrenceCollectionRegistryTableCreate)
         session.execute(s"TRUNCATE effechecka.checklist")
+        session.execute(s"TRUNCATE effechecka.monitors")
         session.execute(s"TRUNCATE effechecka.occurrence_collection_registry")
       }
     } catch {
@@ -224,6 +226,7 @@ class SparkJobs$Test extends TestSparkContext with DwCSparkHandler {
   }
 
   def plantaeSelector = Seq(OccurrenceSelector("Plantae", "ENVELOPE(4,5,52,50)", ""))
+
   def dactylisSelector = Seq(OccurrenceSelector("Dactylis", "ENVELOPE(4,5,52,50)", ""))
 
   "apply occurrence filter to gbif sample" should "select a few occurrences" in {
@@ -323,6 +326,7 @@ class SparkJobs$Test extends TestSparkContext with DwCSparkHandler {
       _.toString
     })
   }
+
   "occurrence collection" should "be saved to cassandra" in {
     val sqlContext = new SQLContext(sc)
     import sqlContext.implicits._

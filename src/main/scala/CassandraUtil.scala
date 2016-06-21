@@ -29,6 +29,10 @@ object CassandraUtil {
     s"CREATE TABLE IF NOT EXISTS effechecka.occurrence_search (source TEXT, id TEXT, taxonselector TEXT, wktstring TEXT, traitselector TEXT, PRIMARY KEY((source), id, taxonselector, wktstring, traitselector))"
   }
 
+  def monitorsTableCreate: String = {
+    s"CREATE TABLE IF NOT EXISTS effechecka.monitors (taxonselector TEXT, wktstring TEXT, traitselector TEXT, accessed_at TIMESTAMP, PRIMARY KEY(taxonselector, wktstring, traitselector))"
+  }
+
   def occurrenceFirstAddedSearchTableCreate: String = {
     s"CREATE TABLE IF NOT EXISTS effechecka.occurrence_first_added_search (source TEXT, added TIMESTAMP, id TEXT, PRIMARY KEY((source), added, id))"
   }
