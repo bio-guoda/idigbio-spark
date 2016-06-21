@@ -129,7 +129,6 @@ object OccurrenceCollectionGenerator {
   }
 
   def occurrenceSelectorsFor(config: ChecklistConf, sc: SparkContext): Seq[OccurrenceSelector] = {
-    val cc = new CassandraSQLContext(sc)
     val sqlString: String = "SELECT taxonselector, wktstring, traitselector, TTL(accessed_at) FROM effechecka.monitors"
     val (query, params) = if (config.applyAllSelectors) {
       (sqlString, List())
@@ -140,19 +139,19 @@ object OccurrenceCollectionGenerator {
       (withWhereClause, List(selectorConfig.taxonSelector, selectorConfig.wktString, selectorConfig.traitSelector))
     }
 
-    CassandraConnector(sc.getConf).withSessionDo { session =>
-      val result = session.execute(query, params: _*)
-      val rows = JavaConversions.asScalaIterator(result.iterator())
-      rows.toSeq.map(row => {
-        val ttlSeconds = if (row.isNull(3)) {
-          None
-        } else {
-          Some(row.getInt(3))
-        }
-        OccurrenceSelector(row.getString(0), row.getString(1), row.getString(2), ttlSeconds)
+    val session = CassandraConnector(sc.getConf).openSession()
+    val result = session.execute(query, params: _*)
+
+    val rows = JavaConversions.collectionAsScalaIterable(result.all())
+    rows.map(row => {
+      val ttlSeconds = if (row.isNull(3)) {
+        None
+      } else {
+        Some(row.getInt(3))
       }
-      )
+      OccurrenceSelector(row.getString(0), row.getString(1), row.getString(2), ttlSeconds)
     }
+    ).toSeq
   }
 
   def load(occurrenceFile: String, sqlContext: SQLContext): Dataset[Occurrence] = {

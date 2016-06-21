@@ -178,6 +178,18 @@ class SparkJobs$Test extends TestSparkContext with DwCSparkHandler {
     sc.parallelize(Seq(("bla|bla", "something", "trait|anotherTrait", "running", 123L))).saveToCassandra("effechecka", "checklist_registry", CassandraUtil.checklistRegistryColumns)
   }
 
+  "broadcast a monitor with ttl" should "serialize" in {
+    val occurrenceSelectors = Seq(OccurrenceSelector("some taxa", "some wkt", "some trait", Some(123)))
+    val broadcasted = sc.broadcast(occurrenceSelectors)
+    occurrenceSelectors should be(broadcasted.value)
+  }
+
+  "broadcast a monitor with no ttl" should "serialize" in {
+    val occurrenceSelectors = Seq(OccurrenceSelector("some taxa", "some wkt", "some trait", None))
+    val broadcasted = sc.broadcast(occurrenceSelectors)
+    occurrenceSelectors should be(broadcasted.value)
+  }
+
   "occurrence selectors" should "be loaded from cassandra" in {
     prepareCassandra
     val someSelectors = Seq(("Mammalia|Insecta", "LINE(1 2 3 4)", "bodyMass greaterThan 19 g", "status", 1)
@@ -200,6 +212,20 @@ class SparkJobs$Test extends TestSparkContext with DwCSparkHandler {
     val firstWithTtl = selectorsAfter.filter(_.ttlSeconds.isDefined).head
     firstWithTtl.traitSelector should be("bodyMass greaterThan 20 g")
     firstWithTtl.ttlSeconds.value should be < 101
+  }
+
+  "occurrence selectors" should "be serializable" in {
+    prepareCassandra
+
+    CassandraConnector(sc.getConf).withSessionDo { session =>
+      session.execute(s"INSERT INTO effechecka.monitors (taxonselector, wktstring, traitselector, accessed_at) VALUES " +
+        s"('Mammalia|Insecta','LINE(1 2 3 4)','bodyMass greaterThan 19 g', dateOf(NOW()))")
+      session.execute(s"INSERT INTO effechecka.monitors (taxonselector, wktstring, traitselector, accessed_at) VALUES " +
+        s"('Mammalia|Insecta','LINE(1 2 3 4)','bodyMass greaterThan 20 g', dateOf(NOW())) USING TTL 100")
+    }
+
+    val selectorsAfter: Seq[OccurrenceSelector] = OccurrenceCollectionGenerator.occurrenceSelectorsFor(ChecklistConf(applyAllSelectors = true), sc)
+    selectorsAfter should be(sc.broadcast(selectorsAfter).value)
   }
 
   def prepareCassandra = {
