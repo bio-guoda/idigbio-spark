@@ -4,6 +4,8 @@ scala:
 sudo: required
 services:
   - cassandra
+before_install:
+  - /var/lib/cassandra/bin/cassandra -v
 cache:
   directories:
       - $HOME/.ivy2
