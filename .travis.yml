@@ -4,7 +4,11 @@ scala:
 sudo: required
 before_install:
   - sudo rm -rf /var/lib/cassandra/*
-  - wget http://www-us.apache.org/dist/cassandra/2.1.14/apache-cassandra-2.1.14-bin.tar.gz && tar -xvzf apache-cassandra-2.1.14-bin.tar.gz && sudo sh apache-cassandra-2.1.14/bin/cassandra
+  - wget http://www-us.apache.org/dist/cassandra/2.1.14/apache-cassandra-2.1.14-bin.tar.gz 
+  - tar -xvzf apache-cassandra-2.1.14-bin.tar.gz
+  - pwd
+  - sudo sh apache-cassandra-2.1.14/bin/cassandra -v
+  - sudo sh apache-cassandra-2.1.14/bin/cassandra
 cache:
   directories:
       - $HOME/.ivy2
