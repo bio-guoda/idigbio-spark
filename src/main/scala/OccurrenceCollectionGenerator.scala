@@ -1,5 +1,4 @@
 import org.apache.spark.broadcast.Broadcast
-import org.apache.spark.sql.cassandra.CassandraSQLContext
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.{SaveMode, Dataset, DataFrame, SQLContext}
 import org.apache.spark.{SparkConf, SparkContext}
@@ -43,9 +42,9 @@ object OccurrenceCollectionGenerator {
 
     val conf = new SparkConf()
       .set("spark.cassandra.connection.host", "localhost")
-//      .set("spark.cassandra.output.batch.grouping.key", "None")
-//      .set("spark.cassandra.output.batch.size.rows", "10")
-//      .set("spark.cassandra.output.batch.size.bytes", "2048")
+      .set("spark.cassandra.output.batch.grouping.key", "None")
+      .set("spark.cassandra.output.batch.size.rows", "10")
+      .set("spark.cassandra.output.batch.size.bytes", "2048")
       .set("spark.cassandra.output.throughput_mb_per_sec", "5") // see https://www.instaclustr.com/blog/2016/03/31/cassandra-connector-for-spark-5-tips-for-success/
       .setAppName("occ2collection")
 
