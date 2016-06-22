@@ -117,7 +117,7 @@ object OccurrenceCollectionGenerator {
     println("sparkcontext stopping...")
     sc.stop()
     println("sparkcontext stopped.")
-
+    System.exit(0)
   }
 
   def initCassandra(sqlContext: SQLContext): Unit = {
