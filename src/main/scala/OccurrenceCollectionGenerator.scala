@@ -65,6 +65,8 @@ object OccurrenceCollectionGenerator {
     }
 
     val sqlContext = SQLContextSingleton.getInstance(sc)
+    initCassandra(sqlContext)
+
     import sqlContext.implicits._
     val occurrenceCollection = load(occurrenceFile, sqlContext).transform[SelectedOccurrence]({ ds =>
       applySelectors(sqlContext, ds, selectors.value)
@@ -93,20 +95,19 @@ object OccurrenceCollectionGenerator {
 
     config.outputFormat.trim match {
       case "cassandra" =>
-        initCassandra(sqlContext)
-
         selectors.value.foreach(selector => {
-          println(s"saving [$selector]")
+          println(s"saving [$selector]...")
           val occForSelector = normalizedOccurrenceCollection.filter(occ =>
             occ.taxonselector == selector.taxonSelector
               && occ.wktstring == selector.wktString
               && occ.traitselector == selector.traitSelector)
 
-          saveCollectionToCassandra(sqlContext = sqlContext, occurrenceCollection = occForSelector, selector.ttlSeconds)
+          saveCollectionToCassandra(sqlContext = sqlContext, occurrenceCollection = occForSelector, ttl = selector.ttlSeconds)
 
           val countBySelector: Long = occForSelector.count()
           sqlContext.sparkContext.parallelize(Seq((selector.taxonSelector, selector.wktString, selector.traitSelector, "ready", countBySelector)))
             .saveToCassandra("effechecka", "occurrence_collection_registry", CassandraUtil.occurrenceCollectionRegistryColumns)
+          println(s"saved [$selector].")
         }
         )
 
@@ -173,15 +174,6 @@ object OccurrenceCollectionGenerator {
 
   def saveCollectionToCassandra(sqlContext: SQLContext, occurrenceCollection: Dataset[OccurrenceCassandra], ttl: Option[Int] = None): Unit = {
     import sqlContext.implicits._
-
-    CassandraConnector(sqlContext.sparkContext.getConf).withSessionDo { session =>
-      session.getCluster.getConfiguration.getQueryOptions
-      session.execute(CassandraUtil.checklistKeySpaceCreate)
-      session.execute(CassandraUtil.occurrenceCollectionRegistryTableCreate)
-      session.execute(CassandraUtil.occurrenceCollectionTableCreate)
-      session.execute(CassandraUtil.occurrenceSearchTableCreate)
-      session.execute(CassandraUtil.occurrenceFirstAddedSearchTableCreate)
-    }
 
     def saveIntoTable[T](ds: Dataset[T], tableName: String): Unit = {
       val defaultMap = Map("keyspace" -> "effechecka")
