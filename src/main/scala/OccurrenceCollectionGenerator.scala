@@ -120,6 +120,7 @@ object OccurrenceCollectionGenerator {
     CassandraConnector(sqlContext.sparkContext.getConf).withSessionDo { session =>
       session.execute(CassandraUtil.checklistKeySpaceCreate)
       session.execute(CassandraUtil.checklistTableCreate)
+      session.execute(CassandraUtil.checklistRegistryTableCreate)
       session.execute(CassandraUtil.occurrenceCollectionRegistryTableCreate)
       session.execute(CassandraUtil.occurrenceCollectionTableCreate)
       session.execute(CassandraUtil.occurrenceSearchTableCreate)

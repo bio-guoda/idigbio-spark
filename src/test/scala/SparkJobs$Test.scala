@@ -169,7 +169,7 @@ class SparkJobs$Test extends TestSparkContext with DwCSparkHandler {
 
 
   "concatenating rows" should "be saved to cassandra" in {
-    prepareCassandra
+    prepareCassandra()
     val otherLines = Seq(("Mammalia|Insecta", "LINE(1 2 3 4)", "bodyMass greaterThan 19 g", "checklist item", 1)
       , ("Mammalia|Insecta", "LINE(1 2 3 4)", "bodyMass greaterThan 19 g", "other checklist item", 1))
 
@@ -191,7 +191,7 @@ class SparkJobs$Test extends TestSparkContext with DwCSparkHandler {
   }
 
   "occurrence selectors" should "be loaded from cassandra" in {
-    prepareCassandra
+    prepareCassandra()
     val someSelectors = Seq(("Mammalia|Insecta", "LINE(1 2 3 4)", "bodyMass greaterThan 19 g", "status", 1)
       , ("Mammalia|Insecta", "LINE(1 2 3 4)", "bodyMass greaterThan 20 g", "other status", 1))
 
@@ -215,7 +215,7 @@ class SparkJobs$Test extends TestSparkContext with DwCSparkHandler {
   }
 
   "occurrence selectors" should "be serializable" in {
-    prepareCassandra
+    prepareCassandra()
 
     CassandraConnector(sc.getConf).withSessionDo { session =>
       session.execute(s"INSERT INTO effechecka.monitors (taxonselector, wktstring, traitselector, accessed_at) VALUES " +
@@ -252,7 +252,7 @@ class SparkJobs$Test extends TestSparkContext with DwCSparkHandler {
   }
 
   def insertSomeSearchResults() = {
-    prepareCassandra
+    prepareCassandra()
 
     val otherLines = Seq(
       ("some taxonselector", "some wktstring", "some traitselector", "Animalia|Aves", "11.4", "12.2", "2013-05-03", 123L, 124L, 635829854630400000L, "http://archive2")
@@ -368,7 +368,7 @@ class SparkJobs$Test extends TestSparkContext with DwCSparkHandler {
     val sqlContext = new SQLContext(sc)
     import sqlContext.implicits._
 
-    prepareCassandra
+    prepareCassandra()
 
     val occurrences = Seq(OccurrenceCassandra(lat = "11.4", lng = "12.2",
       taxon = "Animalia|Aves", added = 123L, start = 44L, end = 55L,
