@@ -52,7 +52,9 @@ object OccurrenceCollectionGenerator {
 
 
     val sc = new SparkContext(conf)
-    val selectorRDD = sc.parallelize(occurrenceSelectorsFor(config, sc))
+    val occurrenceSelectors = occurrenceSelectorsFor(config, sc)
+
+    val selectors: Broadcast[Seq[OccurrenceSelector]] = sc.broadcast(occurrenceSelectors)
 
     val applySelectors = {
       if (config.firstSeenOnly) {
@@ -65,7 +67,7 @@ object OccurrenceCollectionGenerator {
     val sqlContext = SQLContextSingleton.getInstance(sc)
     import sqlContext.implicits._
     val occurrenceCollection = load(occurrenceFile, sqlContext).transform[SelectedOccurrence]({ ds =>
-      applySelectors(sqlContext, ds, selectorRDD.collect())
+      applySelectors(sqlContext, ds, selectors.value)
     })
 
     val normalize: (Dataset[SelectedOccurrence] => Dataset[OccurrenceCassandra]) = {
@@ -93,8 +95,8 @@ object OccurrenceCollectionGenerator {
       case "cassandra" =>
         initCassandra(sqlContext)
 
-        selectorRDD.foreach(selector => {
-          println(s"saving [$selector]....")
+        selectors.value.foreach(selector => {
+          println(s"saving [$selector]")
           val occForSelector = normalizedOccurrenceCollection.filter(occ =>
             occ.taxonselector == selector.taxonSelector
               && occ.wktstring == selector.wktString
@@ -105,13 +107,12 @@ object OccurrenceCollectionGenerator {
           val countBySelector: Long = occForSelector.count()
           sqlContext.sparkContext.parallelize(Seq((selector.taxonSelector, selector.wktString, selector.traitSelector, "ready", countBySelector)))
             .saveToCassandra("effechecka", "occurrence_collection_registry", CassandraUtil.occurrenceCollectionRegistryColumns)
-          println(s"saved [$selector].")
         }
         )
+
       case _ =>
         println(s"unsupported output format [${config.outputFormat}]")
     }
-
 
   }
 
