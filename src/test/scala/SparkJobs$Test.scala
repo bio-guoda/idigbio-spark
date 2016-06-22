@@ -207,7 +207,7 @@ class SparkJobs$Test extends TestSparkContext with DwCSparkHandler {
 
     val selectorsAfter: Seq[OccurrenceSelector] = OccurrenceCollectionGenerator.occurrenceSelectorsFor(ChecklistConf(applyAllSelectors = true), sc)
     selectorsAfter should contain(OccurrenceSelector("Mammalia|Insecta", "LINE(1 2 3 4)", "bodyMass greaterThan 19 g"))
-    selectorsAfter should not contain(OccurrenceSelector("Mammalia|Insecta", "LINE(1 2 3 4)", "bodyMass greaterThan 20 g"))
+    selectorsAfter should not contain (OccurrenceSelector("Mammalia|Insecta", "LINE(1 2 3 4)", "bodyMass greaterThan 20 g"))
 
     val firstWithTtl = selectorsAfter.filter(_.ttlSeconds.isDefined).head
     firstWithTtl.traitSelector should be("bodyMass greaterThan 20 g")
@@ -228,19 +228,26 @@ class SparkJobs$Test extends TestSparkContext with DwCSparkHandler {
     selectorsAfter should be(sc.broadcast(selectorsAfter).value)
   }
 
-  def prepareCassandra = {
+  def prepareCassandra() = {
     try {
       println("preparing cassandra...")
       OccurrenceCollectionGenerator.initCassandra(new SQLContext(sc))
-      CassandraConnector(sc.getConf).withSessionDo { session =>
-        session.execute(s"TRUNCATE effechecka.checklist")
-        session.execute(s"TRUNCATE effechecka.monitors")
-        session.execute(s"TRUNCATE effechecka.occurrence_collection_registry")
-      }
+      truncateTables()
     } catch {
       case e: IOException => {
         fail("failed to connect to cassandra. do you have it running?", e)
       }
+    }
+  }
+
+  def truncateTables(): Unit = {
+    CassandraConnector(sc.getConf).withSessionDo { session =>
+      session.execute(s"TRUNCATE effechecka.checklist")
+      session.execute(s"TRUNCATE effechecka.monitors")
+      session.execute(s"TRUNCATE effechecka.occurrence_collection_registry")
+      session.execute(s"TRUNCATE effechecka.occurrence_collection")
+      session.execute(s"TRUNCATE effechecka.occurrence_search")
+      session.execute(s"TRUNCATE effechecka.occurrence_first_added_search")
     }
   }
 
@@ -361,18 +368,8 @@ class SparkJobs$Test extends TestSparkContext with DwCSparkHandler {
     val sqlContext = new SQLContext(sc)
     import sqlContext.implicits._
 
-    try {
-      CassandraConnector(sc.getConf).withSessionDo { session =>
-        session.execute(s"DROP TABLE IF EXISTS effechecka.occurrence_collection")
-        session.execute(s"DROP TABLE IF EXISTS effechecka.occurrence_search")
-        session.execute(s"DROP TABLE IF EXISTS effechecka.occurrence_first_added_search")
-        session.execute(s"DROP TABLE IF EXISTS effechecka.occurrence_collection_registry")
-      }
-    } catch {
-      case e: IOException => {
-        fail("failed to connect to cassandra. do you have it running?", e)
-      }
-    }
+    prepareCassandra
+
     val occurrences = Seq(OccurrenceCassandra(lat = "11.4", lng = "12.2",
       taxon = "Animalia|Aves", added = 123L, start = 44L, end = 55L,
       id = "some id", source = "some data source",

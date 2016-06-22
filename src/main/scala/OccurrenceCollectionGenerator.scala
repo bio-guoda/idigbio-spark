@@ -118,8 +118,8 @@ object OccurrenceCollectionGenerator {
 
   def initCassandra(sqlContext: SQLContext): Unit = {
     CassandraConnector(sqlContext.sparkContext.getConf).withSessionDo { session =>
-      session.getCluster.getConfiguration.getQueryOptions
       session.execute(CassandraUtil.checklistKeySpaceCreate)
+      session.execute(CassandraUtil.checklistTableCreate)
       session.execute(CassandraUtil.occurrenceCollectionRegistryTableCreate)
       session.execute(CassandraUtil.occurrenceCollectionTableCreate)
       session.execute(CassandraUtil.occurrenceSearchTableCreate)
