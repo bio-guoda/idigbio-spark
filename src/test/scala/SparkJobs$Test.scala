@@ -206,12 +206,12 @@ class SparkJobs$Test extends TestSparkContext with DwCSparkHandler {
     }
 
     val selectorsAfter: Seq[OccurrenceSelector] = OccurrenceCollectionGenerator.occurrenceSelectorsFor(ChecklistConf(applyAllSelectors = true), sc)
-    selectorsAfter should contain(OccurrenceSelector("Mammalia|Insecta", "LINE(1 2 3 4)", "bodyMass greaterThan 19 g"))
+    selectorsAfter should contain(OccurrenceSelector("Mammalia|Insecta", "LINE(1 2 3 4)", "bodyMass greaterThan 19 g", Some(15552000)))
     selectorsAfter should not contain (OccurrenceSelector("Mammalia|Insecta", "LINE(1 2 3 4)", "bodyMass greaterThan 20 g"))
 
-    val firstWithTtl = selectorsAfter.filter(_.ttlSeconds.isDefined).head
-    firstWithTtl.traitSelector should be("bodyMass greaterThan 20 g")
-    firstWithTtl.ttlSeconds.value should be < 101
+    val secondWithTtl = selectorsAfter.filter(_.ttlSeconds.isDefined).tail.head
+    secondWithTtl.traitSelector should be("bodyMass greaterThan 20 g")
+    secondWithTtl.ttlSeconds.value should be < 101
   }
 
   "occurrence selectors" should "be serializable" in {

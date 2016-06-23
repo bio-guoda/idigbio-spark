@@ -1,3 +1,4 @@
+import com.datastax.spark.connector.writer.{WriteConf, TTLOption}
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.{SaveMode, Dataset, DataFrame, SQLContext}
@@ -104,8 +105,14 @@ object OccurrenceCollectionGenerator {
           saveCollectionToCassandra(sqlContext = sqlContext, occurrenceCollection = occForSelector, ttl = selector.ttlSeconds)
 
           val countBySelector: Long = occForSelector.count()
+
+          val writeConf = selector.ttlSeconds match {
+            case Some(ttlSecondsValue) => WriteConf(ttl = TTLOption.constant(ttlSecondsValue))
+            case None => WriteConf()
+          }
+
           sqlContext.sparkContext.parallelize(Seq((selector.taxonSelector, selector.wktString, selector.traitSelector, "ready", countBySelector)))
-            .saveToCassandra("effechecka", "occurrence_collection_registry", CassandraUtil.occurrenceCollectionRegistryColumns)
+            .saveToCassandra("effechecka", "occurrence_collection_registry", CassandraUtil.occurrenceCollectionRegistryColumns, writeConf = writeConf)
           println(s"saved [$selector].")
         }
         )
@@ -150,7 +157,7 @@ object OccurrenceCollectionGenerator {
     val rows = JavaConversions.collectionAsScalaIterable(result.all())
     rows.map(row => {
       val ttlSeconds = if (row.isNull(3)) {
-        None
+        Some(3600 * 24 * 180) // default 180 days
       } else {
         Some(row.getInt(3))
       }
