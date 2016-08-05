@@ -7,7 +7,7 @@ function backup {
 	command="COPY $1 TO STDOUT;"
 	echo $command
 	$CASSANDRA_HOME/bin/cqlsh -e "$command" > $filename
-	cp $filename $OUTPUT_DiR$1-current.csv
+	cp $filename $OUTPUT_DIR$1-current.csv
 }
 
 echo "backup starting..."
