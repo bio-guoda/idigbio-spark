@@ -3,11 +3,11 @@ OUTPUT_DIR=$1
 CASSANDRA_HOME=/home/int/apache-cassandra-2.1.13/
 
 function backup {
-	filename=$OUTPUT_DIR$1.`date -u +"%Y%m%dT%H%M%SZ"`.csv
+	filename=$OUTPUT_DIR$1-`date -u +"%Y%m%dT%H%M%SZ"`.csv
 	command="COPY $1 TO STDOUT;"
 	echo $command
 	$CASSANDRA_HOME/bin/cqlsh -e "$command" > $filename
-	cp $filename $1.csv
+	cp $filename $OUTPUT_DiR$1-current.csv
 }
 
 echo "backup starting..."
