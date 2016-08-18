@@ -1,29 +1,35 @@
-import au.com.bytecode.opencsv.CSVParser
-import org.apache.hadoop.conf.Configuration
-import org.apache.spark.rdd.RDD
+import java.net.URL
+import java.nio.file.attribute.UserPrincipal
+import java.nio.file.{Path, Files, Paths}
+
 import org.apache.spark.{SparkConf, SparkContext}
 import org.apache.spark.sql._
 import org.apache.spark.sql.types._
-import com.datastax.spark.connector.cql.CassandraConnector
 import com.datastax.spark.connector._
 import scopt._
-import java.net.URL
-import org.apache.spark.sql.types.{StructType, StructField, StringType}
 import DwC.Meta
 
-import scala.IllegalArgumentException
+import scala.collection.JavaConversions
 
 trait DwCHandler {
-  def toDF2(sqlCtx: SQLContext, metas: Seq[String]): Seq[(String, DataFrame)]
+  def toDF2(sqlCtx: SQLContext, metas: Seq[String]): Seq[(String, DataFrame)] = {
+    metaToDF(sqlCtx: SQLContext, parseMeta(metas))
+  }
+
+  def parseMeta(metaLocators: Seq[String]): Seq[Meta]
+
+  def metaToDF(sqlCtx: SQLContext, metas: Seq[Meta]): Seq[(String, DataFrame)]
 }
 
 trait DwCSparkHandler extends DwCHandler {
 
-
-  def toDF2(sqlCtx: SQLContext, metaLocators: Seq[String]): Seq[(String, DataFrame)] = {
+  def parseMeta(metaLocators: Seq[String]): Seq[Meta] = {
     val metaURLs: Seq[URL] = metaLocators map { meta => new URL(meta) }
-    val metas: Seq[DwC.Meta] = metaURLs flatMap { metaURL: URL => DwC.readMeta(metaURL) }
-    val metaDFTuples = metas map { meta: DwC.Meta =>
+    metaURLs flatMap { metaURL: URL => DwC.readMeta(metaURL) }
+  }
+
+  def metaToDF(sqlCtx: SQLContext, metas: Seq[Meta]): Seq[(String, DataFrame)] = {
+    val metaDFTuples = metas map { meta: Meta =>
       val schema = StructType(meta.coreTerms map {
         StructField(_, StringType)
       })
@@ -34,7 +40,7 @@ trait DwCSparkHandler extends DwCHandler {
           option("quote", meta.quote).
           schema(schema).
           load(fileLocation.toString)
-        val exceptHeaders: DataFrame = df.except(df.limit(meta.skipHeaderLines))
+        val exceptHeaders = df.except(df.limit(meta.skipHeaderLines))
         (fileLocation, exceptHeaders)
       }
     }
@@ -48,7 +54,13 @@ object DarwinCoreToParquet extends DwCSparkHandler {
 
   case class Config(archives: Seq[String] = Seq())
 
+  def parquetPathString(sourceLocation: String): String = {
+    sourceLocation + ".parquet"
+  }
+
+
   def main(args: Array[String]) {
+
     config(args) match {
       case Some(config) => {
         val conf = new SparkConf()
@@ -58,14 +70,37 @@ object DarwinCoreToParquet extends DwCSparkHandler {
           println(s"attempting to process dwc meta [$archive]")
         }
 
-        for ((sourceLocation, df) <- toDF2(sqlCtx = sqlContext, metaLocators = config.archives)) {
-          df.write.format("parquet").save(sourceLocation + ".parquet")
+        val metas = parseMeta(config.archives)
+        for ((sourceLocation, df) <- metaToDF(sqlCtx = sqlContext, metas = metas)) {
+          df.write.format("parquet").save(parquetPathString(sourceLocation))
         }
+
+        setParquetOwnerToSourceOwner(metas)
       }
       case None =>
       // arguments are bad, error message will have been displayed
     }
 
+  }
+
+  def setParquetOwnerToSourceOwner(metas: Seq[Meta]): Any = {
+    val existingSourceParquetPathPairs = metas
+      .flatMap(_.fileLocations)
+      .map((fileLocation: String) => (Paths.get(fileLocation), Paths.get(parquetPathString(fileLocation))))
+      .filter { case (source: Path, parquet: Path) => Files.exists(source) && Files.exists(parquet) }
+
+    existingSourceParquetPathPairs.foreach {
+      case (sourcePath, parquetPath) => {
+        val sourceOwner = Files.getOwner(sourcePath)
+        setOwner(parquetPath, sourceOwner)
+        JavaConversions.asScalaIterator(parquetPath.iterator()).foreach(setOwner(_, sourceOwner))
+      }
+    }
+  }
+
+  def setOwner(parquetPath: Path, sourceOwner: UserPrincipal): Path = {
+    println("attempting to transfer ownership for [" + parquetPath + "] to [" + sourceOwner.getName + "]")
+    Files.setOwner(parquetPath, sourceOwner)
   }
 
   def config(args: Array[String]): Option[Config] = {
