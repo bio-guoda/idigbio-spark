@@ -1,4 +1,4 @@
-import java.net.URL
+import java.net.{URI, URL}
 import java.nio.file.attribute.UserPrincipal
 import java.nio.file.{Path, Files, Paths}
 
@@ -33,7 +33,7 @@ trait DwCSparkHandler extends DwCHandler {
       val schema = StructType(meta.coreTerms map {
         StructField(_, StringType)
       })
-      meta.fileLocations map { fileLocation =>
+      meta.fileURIs map { fileLocation =>
         println(s"attempting to load [$fileLocation]...")
         val df = sqlCtx.read.format("com.databricks.spark.csv").
           option("delimiter", meta.delimiter).
@@ -85,10 +85,15 @@ object DarwinCoreToParquet extends DwCSparkHandler {
 
   def setParquetOwnerToSourceOwner(metas: Seq[Meta]): Any = {
     val existingSourceParquetPathPairs = metas
-      .flatMap(_.fileLocations)
+      .flatMap(_.fileURIs)
       .map((fileLocation: String) => {
-        (Paths.get(fileLocation), Paths.get(parquetPathString(fileLocation)))
+        val sourceURI = new URI(fileLocation)
+        val parquetURI = new URI(parquetPathString(fileLocation))
+        val (source, parquet) = Paths.get(sourceURI, Paths.get(parquetURI))
+        println("attempting to transfer ownership of [" + parquet + "] to owner of [" + source + "]")
+        (source, parquet)
       })
+      .filter { case (source: Path, parquet: Path) => Files.exists(source) && Files.exists(parquet) }
 
     existingSourceParquetPathPairs.foreach {
       case (sourcePath, parquetPath) => {

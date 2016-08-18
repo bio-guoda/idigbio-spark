@@ -1,5 +1,5 @@
 import org.scalatest._
-import java.net.URL
+import java.net.{URI, URL}
 import java.io.File
 
 class DwC$Test extends FlatSpec with Matchers {
@@ -13,8 +13,8 @@ class DwC$Test extends FlatSpec with Matchers {
         meta.skipHeaderLines should be(1)
         meta.coreTerms.size should be(224)
         meta.coreTerms should contain("http://rs.tdwg.org/dwc/terms/genus")
-        meta.fileLocations.size should be(1)
-        meta.fileLocations should contain(getClass.getResource("/gbif/occurrence.txt").toString)
+        meta.fileURIs.size should be(1)
+        meta.fileURIs should contain(getClass.getResource("/gbif/occurrence.txt").toString)
       }
       case None => {
         fail("expected some meta")
@@ -45,7 +45,7 @@ class DwC$Test extends FlatSpec with Matchers {
   "occurrence reader" should "use full field terms" in {
     val metaOption = DwC.readMeta(getClass.getResource("/gbif/meta.xml"))
     val meta = metaOption.getOrElse(fail("kaboom!"))
-    val filepathURI = new URL(meta.fileLocations.head).toURI    
+    val filepathURI = new URI(meta.fileURIs.head)
     new File(filepathURI).exists should be(true)    
   }
 

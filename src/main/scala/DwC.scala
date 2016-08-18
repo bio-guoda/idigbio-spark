@@ -5,7 +5,7 @@ import java.io.File
 
 object DwC {
 
-  case class Meta(coreTerms: Seq[String], delimiter: String, quote: String, fileLocations: Seq[String], skipHeaderLines: Int)
+  case class Meta(coreTerms: Seq[String], delimiter: String, quote: String, fileURIs: Seq[String], skipHeaderLines: Int)
 
   def readMeta(metaURL: URL): Option[Meta] = try {
     val meta = XML.load(metaURL)
