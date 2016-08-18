@@ -1,3 +1,4 @@
+import java.io.File
 import java.net.{URI, URL}
 import java.nio.file.attribute.UserPrincipal
 import java.nio.file.{Path, Files, Paths}
@@ -9,7 +10,7 @@ import com.datastax.spark.connector._
 import scopt._
 import DwC.Meta
 
-import scala.collection.JavaConversions
+import scala.collection.JavaConversions._
 
 trait DwCHandler {
   def toDF2(sqlCtx: SQLContext, metas: Seq[String]): Seq[(String, DataFrame)] = {
@@ -97,16 +98,16 @@ object DarwinCoreToParquet extends DwCSparkHandler {
 
     existingSourceParquetPathPairs.foreach {
       case (sourcePath, parquetPath) => {
-        val sourceOwner = Files.getOwner(sourcePath)
-        setOwner(parquetPath, sourceOwner)
-        JavaConversions.asScalaIterator(parquetPath.iterator()).foreach(setOwner(_, sourceOwner))
+        transferToOwnerOf(parquetPath, sourcePath)
+        parquetPath.toFile.listFiles().foreach((file: File) => transferToOwnerOf(file.toPath, sourcePath))
       }
     }
   }
 
-  def setOwner(parquetPath: Path, sourceOwner: UserPrincipal): Path = {
-    println("attempting to transfer ownership for [" + parquetPath + "] to [" + sourceOwner.getName + "]")
-    Files.setOwner(parquetPath, sourceOwner)
+  def transferToOwnerOf(parquetPath: Path, sourcePath: Path): Path = {
+    val owner: UserPrincipal = Files.getOwner(sourcePath)
+    println(s"attempting to transfer ownership for [$parquetPath] to owner [${owner.getName}] of [$sourcePath]")
+    Files.setOwner(parquetPath, owner)
   }
 
   def config(args: Array[String]): Option[Config] = {
