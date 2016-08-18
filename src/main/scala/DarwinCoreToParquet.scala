@@ -89,7 +89,7 @@ object DarwinCoreToParquet extends DwCSparkHandler {
       .map((fileLocation: String) => {
         val sourceURI = new URI(fileLocation)
         val parquetURI = new URI(parquetPathString(fileLocation))
-        val (source, parquet) = Paths.get(sourceURI), Paths.get(parquetURI)
+        val (source, parquet) = (Paths.get(sourceURI), Paths.get(parquetURI))
         println("attempting to transfer ownership of [" + parquet + "] to owner of [" + source + "]")
         (source, parquet)
       })
