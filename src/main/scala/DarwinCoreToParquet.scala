@@ -86,7 +86,11 @@ object DarwinCoreToParquet extends DwCSparkHandler {
   def setParquetOwnerToSourceOwner(metas: Seq[Meta]): Any = {
     val existingSourceParquetPathPairs = metas
       .flatMap(_.fileLocations)
-      .map((fileLocation: String) => (Paths.get(fileLocation), Paths.get(parquetPathString(fileLocation))))
+      .map((fileLocation: String) => {
+        val (source, parquet) = (Paths.get(fileLocation), Paths.get(parquetPathString(fileLocation)))
+        println("attempting to transfer ownership of [" + parquet + "] to owner of [" + source + "]")
+        (source, parquet)
+      })
       .filter { case (source: Path, parquet: Path) => Files.exists(source) && Files.exists(parquet) }
 
     existingSourceParquetPathPairs.foreach {
