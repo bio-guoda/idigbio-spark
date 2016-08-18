@@ -87,11 +87,8 @@ object DarwinCoreToParquet extends DwCSparkHandler {
     val existingSourceParquetPathPairs = metas
       .flatMap(_.fileLocations)
       .map((fileLocation: String) => {
-        val (source, parquet) = (Paths.get(fileLocation), Paths.get(parquetPathString(fileLocation)))
-        println("attempting to transfer ownership of [" + parquet + "] to owner of [" + source + "]")
-        (source, parquet)
+        (Paths.get(fileLocation), Paths.get(parquetPathString(fileLocation)))
       })
-      .filter { case (source: Path, parquet: Path) => Files.exists(source) && Files.exists(parquet) }
 
     existingSourceParquetPathPairs.foreach {
       case (sourcePath, parquetPath) => {
