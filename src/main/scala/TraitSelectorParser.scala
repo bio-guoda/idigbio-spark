@@ -12,7 +12,7 @@ object TraitSelectorParser extends RegexParsers {
     _.toString
   }
 
-  def unit: Parser[String] = """(datetime|string)""".r ^^ {
+  def unit: Parser[String] = """(\w+)""".r ^^ {
     _.toString
   }
 

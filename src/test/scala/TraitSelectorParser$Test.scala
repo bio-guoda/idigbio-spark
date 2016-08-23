@@ -15,6 +15,11 @@ class TraitSelectorParser$Test extends FlatSpec with Matchers {
     parse(selectorString)(occTest) should be(true)
   }
 
+  "unsupported unit" should "produce trait filter that never succeeds" in {
+    val selectorString: String = "bodyMass < 5 g"
+    parse(selectorString)(occTest) should be(false)
+  }
+
   "parser" should "produce a trait filter config with < and >" in {
     val selectorString: String = "eventDate < 2015-02-01 datetime | eventDate > 2014-01-01 datetime"
     parse(selectorString)(occTest) should be(true)
