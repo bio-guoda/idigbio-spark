@@ -1,12 +1,12 @@
 #!/bin/bash
 OUTPUT_DIR=$1
 RESTORE_VERSION=$2
-CASSANDRA_HOME=/home/int/apache-cassandra-2.1.13/
+CASSANDRA_HOME=/home/int/apache-cassandra-2.1.15/
 
 function restore {
 	filename=$OUTPUT_DIR/$1-$RESTORE_VERSION.csv
-	command="COPY $1 FROM $filename;"
-	echo $command
+  command="COPY $1 FROM '$filename' WITH NULL='null';"
+  echo $command
 	$CASSANDRA_HOME/bin/cqlsh -e "$command"
 }
 
