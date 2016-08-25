@@ -7,9 +7,9 @@ object OccurrenceSelectors {
   type OccurrenceFilter = (Occurrence) => Boolean
 
   def taxonSelector(config: OccurrenceSelector): OccurrenceFilter = {
-    val selectedTaxa: Array[String] = config.taxonSelector.split("\\|")
+    val selectedTaxa: Array[String] = config.taxonSelector.toLowerCase.split("\\|")
     if (selectedTaxa.length > 0) {
-      x => selectedTaxa.intersect(x.taxonPath.split("\\|")).nonEmpty
+      x => selectedTaxa.intersect(x.taxonPath.toLowerCase.split("""[\|\s]""")).nonEmpty
     } else {
       x => false
     }

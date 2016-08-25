@@ -48,6 +48,10 @@ class DateUtil$Test extends FlatSpec with Matchers {
     DateUtil.validDate("boo 2016-01-1") should be(false)
   }
 
+  "one month digit date" should "be valid" in {
+    DateUtil.validDate("2014-7-23") should be(true)
+  }
+
   "inaturalist date" should "be valid" in {
     DateUtil.validDate("2014-10-31T14:27:00-07:00") should be(true)
     DateUtil.validDate("20150605") should be(true)
