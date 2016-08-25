@@ -1,5 +1,4 @@
-
-
+import scala.collection.mutable
 
 
 object OccurrenceSelectors {
@@ -9,7 +8,11 @@ object OccurrenceSelectors {
   def taxonSelector(config: OccurrenceSelector): OccurrenceFilter = {
     val selectedTaxa: Array[String] = config.taxonSelector.toLowerCase.split("\\|")
     if (selectedTaxa.length > 0) {
-      x => selectedTaxa.intersect(x.taxonPath.toLowerCase.split("""[\|\s]""")).nonEmpty
+      x => {
+        val names = x.taxonPath.toLowerCase.split("""\|""")
+        val words = names.flatMap(_.split("""\s"""))
+        selectedTaxa.intersect(names ++ words).nonEmpty
+      }
     } else {
       x => false
     }
