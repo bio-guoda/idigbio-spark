@@ -22,7 +22,6 @@ object OccurrenceSelectors {
       TraitSelectorParser.parse(TraitSelectorParser.config, config.traitSelector) match {
         case TraitSelectorParser.Success(selector, _) => selector
         case failure: TraitSelectorParser.NoSuccess => {
-          scala.sys.error(s"traitSelector from [$config] failed to parse: [$failure.msg]")
           selectNever
         }
       }
