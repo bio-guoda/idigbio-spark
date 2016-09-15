@@ -38,7 +38,6 @@ object TraitSelectorParser extends RegexParsers {
       (x: Occurrence) => !x.source.equals(value)
     }
     case name ~ op ~ value ~ unit =>
-      println(s"unsupported trait selector: $name $op $value $unit")
       OccurrenceSelectors.selectNever
   }
 
