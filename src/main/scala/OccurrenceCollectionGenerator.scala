@@ -167,7 +167,8 @@ object OccurrenceCollectionGenerator {
   }
 
   def load(occurrenceFile: String, sqlContext: SQLContext): Dataset[Occurrence] = {
-    val occurrences: DataFrame = sqlContext.read.format("parquet").load(occurrenceFile)
+    // see https://github.com/gimmefreshdata/freshdata/issues/51
+    val occurrences: DataFrame = sqlContext.option("mergeSchema","true").read.format("parquet").load(occurrenceFile)
     OccurrenceCollectionBuilder.toOccurrenceDS(sqlContext, occurrences)
   }
 
