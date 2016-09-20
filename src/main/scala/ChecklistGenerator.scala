@@ -41,7 +41,7 @@ object ChecklistGenerator {
       .setAppName("occ2checklist")
     val sc = new SparkContext(conf)
     val sqlContext = SQLContextSingleton.getInstance(sc)
-    val occurrences: DataFrame = sqlContext.read.format("parquet").load(occurrenceFile)
+    val occurrences: DataFrame = ParquetUtil.readParquet(path = occurrenceFile, sqlContext = sqlContext)
     val occChecklist = ChecklistBuilder.buildChecklist(sc, occurrences, wktString, taxonSelector)
 
     val traitSelectors = config.traitSelector
