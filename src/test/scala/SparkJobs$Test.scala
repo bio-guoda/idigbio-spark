@@ -339,7 +339,7 @@ class SparkJobs$Test extends TestSparkContext with DwCSparkHandler {
     occurrenceDFs.length should be(2)
 
     occurrenceDFs.head.columns should contain("http://rs.gbif.org/terms/1.0/gbifID")
-    occurrenceDFs.last.columns should contain("id")
+    occurrenceDFs.last.columns should contain("undefined0")
     occurrenceDFs.foreach {
       _.columns should contain("http://rs.tdwg.org/dwc/terms/scientificName")
     }
