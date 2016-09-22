@@ -29,7 +29,7 @@ class DwC$Test extends FlatSpec with Matchers {
       case Some(meta) => {
         meta.coreTerms should contain("http://rs.tdwg.org/dwc/terms/%20identificationQualifier")
         meta.coreTerms should contain("http://rs.tdwg.org/dwc/terms/identificationQualifier")
-        meta.coreTerms.size should be(187)
+        meta.coreTerms.size should be(186)
         meta.coreTerms should contain("undefined0")
       }
       case None => {
