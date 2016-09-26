@@ -49,6 +49,11 @@ class SpatialFilter$Test extends FlatSpec with Matchers {
     SpatialFilter.locatedInLatLng(geometry, Seq("0.0", "-210")) shouldBe false
   }
 
+  "a puffin" should "hangout in puffin territory" in {
+    val geometry: String = "POLYGON ((-154.68749999999997 35.460669951495305, -154.68749999999997 62.2679226294176, -112.5 62.2679226294176, -112.5 35.460669951495305, -154.68749999999997 35.460669951495305))"
+    SpatialFilter.locatedInLatLng(geometry, Seq("48.8394", "-125.649")) shouldBe true
+  }
+
   "a polygon collection covering guinea" should "include a point in guinea, but not boston" in {
     val geometry: String = "POLYGON ((141 -12, 141 0, 155 0, 155 -12, 141 -12))"
     SpatialFilter.locatedInLatLng(geometry, Seq("42.0", "-70")) shouldBe false

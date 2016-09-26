@@ -10,8 +10,10 @@ object OccurrenceSelectors {
     if (selectedTaxa.length > 0) {
       x => {
         val names = x.taxonPath.toLowerCase.split("""\|""")
-        val words = names.flatMap(_.split("""\s"""))
-        selectedTaxa.intersect(names ++ words).nonEmpty
+        // see https://en.wikipedia.org/wiki/N-gram
+        val unigram = names.flatMap(_.split("""\s"""))
+        val bigram = names.flatMap(_.split("""\s""").sliding(2).map(_.mkString(" ")))
+        selectedTaxa.intersect(names ++ unigram ++ bigram).nonEmpty
       }
     } else {
       x => false
