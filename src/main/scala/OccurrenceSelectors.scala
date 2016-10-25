@@ -1,6 +1,3 @@
-import scala.collection.mutable
-
-
 object OccurrenceSelectors {
 
   type OccurrenceFilter = (Occurrence) => Boolean
@@ -16,7 +13,7 @@ object OccurrenceSelectors {
         selectedTaxa.intersect(names ++ unigram ++ bigram).nonEmpty
       }
     } else {
-      x => false
+      selectNever
     }
   }
 
@@ -47,7 +44,7 @@ object OccurrenceSelectors {
       case Some(area) =>
         (x: Occurrence) => SpatialFilter.valuesInArea(Seq(x.lat, x.lng), area)
       case _ =>
-        x => false
+        selectNever
     }
   }
 
