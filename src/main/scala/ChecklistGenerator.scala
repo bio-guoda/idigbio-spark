@@ -69,7 +69,7 @@ object ChecklistGenerator {
       case _ => checklist.map(item => List(taxonSelectorString, wktString, traitSelectorString, item._1, item._2).mkString(","))
         .saveAsTextFile(occurrenceFile + ".checklist" + System.currentTimeMillis)
     }
-
+    SparkUtil.stopAndExit(sc)
   }
 
   def parseCSV(csvFile: String, sc: SparkContext): RDD[Seq[(String, String)]] = {

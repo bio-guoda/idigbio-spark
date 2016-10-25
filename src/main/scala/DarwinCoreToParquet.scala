@@ -66,7 +66,8 @@ object DarwinCoreToParquet extends DwCSparkHandler {
       case Some(config) => {
         val conf = new SparkConf()
           .setAppName("dwc2parquet")
-        sqlContext = new SQLContext(new SparkContext(conf))
+        val ctx: SparkContext = new SparkContext(conf)
+        sqlContext = new SQLContext(ctx)
         for (archive <- config.archives) {
           println(s"attempting to process dwc meta [$archive]")
         }
@@ -77,6 +78,7 @@ object DarwinCoreToParquet extends DwCSparkHandler {
         }
 
         setParquetOwnerToSourceOwner(metas)
+        SparkUtil.stopAndExit(sc)
       }
       case None =>
       // arguments are bad, error message will have been displayed

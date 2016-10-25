@@ -122,10 +122,7 @@ object OccurrenceCollectionGenerator {
         println(s"unsupported output format [${config.outputFormat}]")
     }
 
-    println("sparkcontext stopping...")
-    sc.stop()
-    println("sparkcontext stopped.")
-    System.exit(0)
+    SparkUtil.stopAndExit(sc)
   }
 
   def initCassandra(sqlContext: SQLContext): Unit = {
