@@ -17,6 +17,7 @@ trait TestSparkContext extends FlatSpec with Matchers with BeforeAndAfter with S
   override val conf = new SparkConf().
     setMaster("local[*]").
     setAppName("test").
+    set("spark.debug.maxToStringFields", "250"). // see https://issues.apache.org/jira/browse/SPARK-15794
     set("spark.cassandra.connection.host", "localhost").
     set("spark.ui.enabled", "false").
     set("spark.app.id", appID)
@@ -274,9 +275,9 @@ class SparkJobs$Test extends TestSparkContext with DwCSparkHandler {
     val gbifOcc: Dataset[Occurrence] = toOccurrenceDS(sqlContext, gbif)
     val collection = selectOccurrences(sqlContext, gbifOcc, plantaeSelector)
 
-    collection.count() should be(9)
-    collection.first().occ.lat should be("51.94536")
-
+    val selectedOccurrences = collection.collect()
+    selectedOccurrences.size should be(9)
+    selectedOccurrences.map(_.occ.lat) should contain("51.94536")
 
     val anotherCollection = selectOccurrences(sqlContext, gbifOcc, dactylisSelector)
 

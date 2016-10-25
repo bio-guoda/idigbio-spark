@@ -42,6 +42,7 @@ object OccurrenceCollectionGenerator {
     val occurrenceFile = config.occurrenceFiles.head
 
     val conf = new SparkConf()
+      .set("spark.debug.maxToStringFields", "250") // see https://issues.apache.org/jira/browse/SPARK-15794
       .set("spark.cassandra.connection.host", "localhost")
       .set("spark.cassandra.output.batch.grouping.key", "None")
       .set("spark.cassandra.output.batch.size.rows", "10")
@@ -346,11 +347,14 @@ object OccurrenceCollectionBuilder {
   def firstSeenOccurrences(sqlContext: SQLContext, occurrences: Dataset[SelectedOccurrence]): Dataset[SelectedOccurrence] = {
     import sqlContext.implicits._
 
+    // see http://stackoverflow.com/questions/40049076/spark-codegenerator-failed-to-compile-with-dataset-groupbykey
     occurrences
-      .groupBy($"occ.id", $"selector.taxonSelector", $"selector.wktString", $"selector.traitSelector")
-      .reduce((selected: SelectedOccurrence, firstSelected: SelectedOccurrence) => {
-        SelectedOccurrence(DateUtil.selectFirstPublished(selected.occ, firstSelected.occ), firstSelected.selector)
-      }).map(_._2)
+        .groupByKey(selOcc => (selOcc.occ.id, selOcc.selector))
+        .mapGroups((key, selOccs) => {
+          selOccs.reduce((agg, occ) => {
+            SelectedOccurrence(occ = DateUtil.selectFirstPublished(agg.occ, occ.occ), selector = key._2)
+          })
+        })
   }
 
 }
