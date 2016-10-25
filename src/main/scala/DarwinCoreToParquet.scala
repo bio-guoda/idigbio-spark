@@ -36,7 +36,7 @@ trait DwCSparkHandler extends DwCHandler {
       })
       meta.fileURIs map { fileLocation =>
         println(s"attempting to load [$fileLocation]...")
-        val df = sqlCtx.read.format("com.databricks.spark.csv").
+        val df = sqlCtx.read.format("csv").
           option("delimiter", meta.delimiter).
           option("quote", meta.quote).
           schema(schema).

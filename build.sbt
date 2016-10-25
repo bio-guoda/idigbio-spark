@@ -11,7 +11,6 @@ libraryDependencies ++= Seq(
   "net.sf.opencsv" % "opencsv" % "2.3",
   "org.apache.commons" % "commons-csv" % "1.1",
   "com.github.scopt" %% "scopt" % "3.3.0",
-  "com.databricks" % "spark-csv_2.10" % "1.3.0",
   "io.spray" %%  "spray-json" % "1.3.2",
   "org.globalnames" %% "gnparser" % "0.3.3",
   "org.locationtech.spatial4j" % "spatial4j" % "0.6",
