@@ -3,8 +3,10 @@ object OccurrenceSelectors {
   type OccurrenceFilter = (Occurrence) => Boolean
 
   def taxonSelector(config: OccurrenceSelector): OccurrenceFilter = {
-    val selectedTaxa: Array[String] = config.taxonSelector.toLowerCase.split("\\|")
-    if (selectedTaxa.length > 0) {
+    val selectedTaxa: Array[String] = config.taxonSelector.toLowerCase.split("\\|").filter(_.nonEmpty)
+    if (selectedTaxa.length == 0) {
+      selectAlways
+    } else {
       x => {
         val names = x.taxonPath.toLowerCase.split("""\|""")
         // see https://en.wikipedia.org/wiki/N-gram
@@ -12,8 +14,6 @@ object OccurrenceSelectors {
         val bigram = names.flatMap(_.split("""\s""").sliding(2).map(_.mkString(" ")))
         selectedTaxa.intersect(names ++ unigram ++ bigram).nonEmpty
       }
-    } else {
-      selectNever
     }
   }
 
@@ -29,7 +29,6 @@ object OccurrenceSelectors {
       }
     }
   }
-
 
   val selectAlways: OccurrenceFilter = {
     (x: Occurrence) => true

@@ -27,6 +27,12 @@ class OccurrenceSelectors$Test extends FlatSpec with Matchers {
     selectors(matching) should be(true)
   }
 
+  "a taxon filter" should "always match when empty" in {
+    val selectors = apply(OccurrenceSelector("", "ENVELOPE(4,5,52,50)", ""))
+    val matching = Occurrence("51", "4.1", "Insecta|Aedes mitchellae", "2015-01-01", "someId", "20140101", "someSource")
+    selectors(matching) should be(true)
+  }
+
   "a taxon filter" should "filter taxa by ignore case" in {
     val selectors = apply(OccurrenceSelector("aedes", "ENVELOPE(4,5,52,50)", ""))
     val matching = Occurrence("51", "4.1", "Insecta|Aedes mitchellae", "2015-01-01", "someId", "20140101", "someSource")

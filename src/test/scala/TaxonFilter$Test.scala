@@ -22,4 +22,8 @@ class TaxonFilter$Test extends FlatSpec with Matchers {
     TaxonFilter.hasTaxa(List("Homo"), Map("dwc:donald" -> "Homo sapiens", "dwc:duck" -> "Homo")) shouldBe false
   }
 
+  "empty taxon selector" should "always match" in {
+    TaxonFilter.hasTaxa(List(), Map("dwc:scientificName" -> "Homo sapiens", "dwc:kingdom" -> "Animalia")) shouldBe true
+  }
+
 }
