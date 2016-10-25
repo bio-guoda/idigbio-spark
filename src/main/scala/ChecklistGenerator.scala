@@ -40,36 +40,39 @@ object ChecklistGenerator {
       .set("spark.cassandra.connection.host", "localhost")
       .setAppName("occ2checklist")
     val sc = new SparkContext(conf)
-    val sqlContext = SQLContextSingleton.getInstance(sc)
-    val occurrences: DataFrame = ParquetUtil.readParquet(path = occurrenceFile, sqlContext = sqlContext)
-    val occChecklist = ChecklistBuilder.buildChecklist(sc, occurrences, wktString, taxonSelector)
+    try {
+      val sqlContext = SQLContextSingleton.getInstance(sc)
+      val occurrences: DataFrame = ParquetUtil.readParquet(path = occurrenceFile, sqlContext = sqlContext)
+      val occChecklist = ChecklistBuilder.buildChecklist(sc, occurrences, wktString, taxonSelector)
 
-    val traitSelectors = config.traitSelector
-    val traitSelectorString: String = traitSelectors.mkString("|")
-    val traitsFile = config.traitFiles.head.trim
+      val traitSelectors = config.traitSelector
+      val traitSelectorString: String = traitSelectors.mkString("|")
+      val traitsFile = config.traitFiles.head.trim
 
-    val traits: RDD[Seq[(String, String)]] = parseCSV(traitsFile, sc)
+      val traits: RDD[Seq[(String, String)]] = parseCSV(traitsFile, sc)
 
-    val checklist = filterByTraits(occChecklist, traits, traitSelectors)
+      val checklist = filterByTraits(occChecklist, traits, traitSelectors)
 
-    config.outputFormat.trim match {
-      case "cassandra" => {
-        CassandraConnector(sc.getConf).withSessionDo { session =>
-          session.execute(CassandraUtil.checklistKeySpaceCreate)
-          session.execute(CassandraUtil.checklistRegistryTableCreate)
-          session.execute(CassandraUtil.checklistTableCreate)
+      config.outputFormat.trim match {
+        case "cassandra" => {
+          CassandraConnector(sc.getConf).withSessionDo { session =>
+            session.execute(CassandraUtil.checklistKeySpaceCreate)
+            session.execute(CassandraUtil.checklistRegistryTableCreate)
+            session.execute(CassandraUtil.checklistTableCreate)
+          }
+          checklist.cache().map(item => (taxonSelectorString, wktString, traitSelectorString, item._1, item._2))
+            .saveToCassandra("effechecka", "checklist", CassandraUtil.checklistColumns)
+
+          sc.parallelize(Seq((taxonSelectorString, wktString, traitSelectorString, "ready", checklist.count())))
+            .saveToCassandra("effechecka", "checklist_registry", CassandraUtil.checklistRegistryColumns)
         }
-        checklist.cache().map(item => (taxonSelectorString, wktString, traitSelectorString, item._1, item._2))
-          .saveToCassandra("effechecka", "checklist", CassandraUtil.checklistColumns)
 
-        sc.parallelize(Seq((taxonSelectorString, wktString, traitSelectorString, "ready", checklist.count())))
-          .saveToCassandra("effechecka", "checklist_registry", CassandraUtil.checklistRegistryColumns)
+        case _ => checklist.map(item => List(taxonSelectorString, wktString, traitSelectorString, item._1, item._2).mkString(","))
+          .saveAsTextFile(occurrenceFile + ".checklist" + System.currentTimeMillis)
       }
-
-      case _ => checklist.map(item => List(taxonSelectorString, wktString, traitSelectorString, item._1, item._2).mkString(","))
-        .saveAsTextFile(occurrenceFile + ".checklist" + System.currentTimeMillis)
+    } finally {
+      SparkUtil.stopAndExit(sc)
     }
-    SparkUtil.stopAndExit(sc)
   }
 
   def parseCSV(csvFile: String, sc: SparkContext): RDD[Seq[(String, String)]] = {

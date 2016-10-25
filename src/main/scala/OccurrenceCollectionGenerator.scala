@@ -53,76 +53,78 @@ object OccurrenceCollectionGenerator {
 
 
     val sc = new SparkContext(conf)
-    val occurrenceSelectors = occurrenceSelectorsFor(config, sc)
+    try {
+      val occurrenceSelectors = occurrenceSelectorsFor(config, sc)
 
-    val selectors: Broadcast[Seq[OccurrenceSelector]] = sc.broadcast(occurrenceSelectors)
+      val selectors: Broadcast[Seq[OccurrenceSelector]] = sc.broadcast(occurrenceSelectors)
 
-    val applySelectors = {
-      if (config.firstSeenOnly) {
-        OccurrenceCollectionBuilder.selectOccurrencesFirstSeenOnly _
-      } else {
-        OccurrenceCollectionBuilder.selectOccurrences _
-      }
-    }
-
-    val sqlContext = SQLContextSingleton.getInstance(sc)
-    initCassandra(sqlContext)
-
-    import sqlContext.implicits._
-    val occurrenceCollection = load(occurrenceFile, sqlContext).transform[SelectedOccurrence]({ ds =>
-      applySelectors(sqlContext, ds, selectors.value)
-    })
-
-    val normalize: (Dataset[SelectedOccurrence] => Dataset[OccurrenceCassandra]) = {
-      _.map(selectedOcc => {
-        val occ = selectedOcc.occ
-        val startEnd = DateUtil.startEndDate(occ.eventDate)
-        OccurrenceCassandra(
-          taxonselector = selectedOcc.selector.taxonSelector,
-          wktstring = selectedOcc.selector.wktString,
-          traitselector = selectedOcc.selector.traitSelector,
-          lat = occ.lat, lng = occ.lng,
-          taxon = occ.taxonPath,
-          start = startEnd._1,
-          end = startEnd._2,
-          id = occ.id,
-          added = DateUtil.basicDateToUnixTime(occ.sourceDate),
-          source = occ.source)
-      })
-    }
-
-    val normalizedOccurrenceCollection = occurrenceCollection
-      .transform(normalize).cache()
-
-    config.outputFormat.trim match {
-      case "cassandra" =>
-        selectors.value.foreach(selector => {
-          println(s"saving [$selector]...")
-          val occForSelector = normalizedOccurrenceCollection.filter(occ =>
-            occ.taxonselector == selector.taxonSelector
-              && occ.wktstring == selector.wktString
-              && occ.traitselector == selector.traitSelector)
-
-          saveCollectionToCassandra(sqlContext = sqlContext, occurrenceCollection = occForSelector, ttl = selector.ttlSeconds)
-
-          val countBySelector: Long = occForSelector.count()
-
-          val writeConf = selector.ttlSeconds match {
-            case Some(ttlSecondsValue) => WriteConf(ttl = TTLOption.constant(ttlSecondsValue))
-            case None => WriteConf()
-          }
-
-          sqlContext.sparkContext.parallelize(Seq((selector.taxonSelector, selector.wktString, selector.traitSelector, "ready", countBySelector)))
-            .saveToCassandra("effechecka", "occurrence_collection_registry", CassandraUtil.occurrenceCollectionRegistryColumns, writeConf = writeConf)
-          println(s"saved [$selector].")
+      val applySelectors = {
+        if (config.firstSeenOnly) {
+          OccurrenceCollectionBuilder.selectOccurrencesFirstSeenOnly _
+        } else {
+          OccurrenceCollectionBuilder.selectOccurrences _
         }
-        )
+      }
 
-      case _ =>
-        println(s"unsupported output format [${config.outputFormat}]")
+      val sqlContext = SQLContextSingleton.getInstance(sc)
+      initCassandra(sqlContext)
+
+      import sqlContext.implicits._
+      val occurrenceCollection = load(occurrenceFile, sqlContext).transform[SelectedOccurrence]({ ds =>
+        applySelectors(sqlContext, ds, selectors.value)
+      })
+
+      val normalize: (Dataset[SelectedOccurrence] => Dataset[OccurrenceCassandra]) = {
+        _.map(selectedOcc => {
+          val occ = selectedOcc.occ
+          val startEnd = DateUtil.startEndDate(occ.eventDate)
+          OccurrenceCassandra(
+            taxonselector = selectedOcc.selector.taxonSelector,
+            wktstring = selectedOcc.selector.wktString,
+            traitselector = selectedOcc.selector.traitSelector,
+            lat = occ.lat, lng = occ.lng,
+            taxon = occ.taxonPath,
+            start = startEnd._1,
+            end = startEnd._2,
+            id = occ.id,
+            added = DateUtil.basicDateToUnixTime(occ.sourceDate),
+            source = occ.source)
+        })
+      }
+
+      val normalizedOccurrenceCollection = occurrenceCollection
+        .transform(normalize).cache()
+
+      config.outputFormat.trim match {
+        case "cassandra" =>
+          selectors.value.foreach(selector => {
+            println(s"saving [$selector]...")
+            val occForSelector = normalizedOccurrenceCollection.filter(occ =>
+              occ.taxonselector == selector.taxonSelector
+                && occ.wktstring == selector.wktString
+                && occ.traitselector == selector.traitSelector)
+
+            saveCollectionToCassandra(sqlContext = sqlContext, occurrenceCollection = occForSelector, ttl = selector.ttlSeconds)
+
+            val countBySelector: Long = occForSelector.count()
+
+            val writeConf = selector.ttlSeconds match {
+              case Some(ttlSecondsValue) => WriteConf(ttl = TTLOption.constant(ttlSecondsValue))
+              case None => WriteConf()
+            }
+
+            sqlContext.sparkContext.parallelize(Seq((selector.taxonSelector, selector.wktString, selector.traitSelector, "ready", countBySelector)))
+              .saveToCassandra("effechecka", "occurrence_collection_registry", CassandraUtil.occurrenceCollectionRegistryColumns, writeConf = writeConf)
+            println(s"saved [$selector].")
+          }
+          )
+
+        case _ =>
+          println(s"unsupported output format [${config.outputFormat}]")
+      }
+    } finally {
+      SparkUtil.stopAndExit(sc)
     }
-
-    SparkUtil.stopAndExit(sc)
   }
 
   def initCassandra(sqlContext: SQLContext): Unit = {
@@ -346,12 +348,12 @@ object OccurrenceCollectionBuilder {
 
     // see http://stackoverflow.com/questions/40049076/spark-codegenerator-failed-to-compile-with-dataset-groupbykey
     occurrences
-        .groupByKey(selOcc => (selOcc.occ.id, selOcc.selector))
-        .mapGroups((key, selOccs) => {
-          selOccs.reduce((agg, occ) => {
-            SelectedOccurrence(occ = DateUtil.selectFirstPublished(agg.occ, occ.occ), selector = key._2)
-          })
+      .groupByKey(selOcc => (selOcc.occ.id, selOcc.selector))
+      .mapGroups((key, selOccs) => {
+        selOccs.reduce((agg, occ) => {
+          SelectedOccurrence(occ = DateUtil.selectFirstPublished(agg.occ, occ.occ), selector = key._2)
         })
+      })
   }
 
 }
