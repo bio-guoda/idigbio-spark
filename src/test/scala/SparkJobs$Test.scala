@@ -94,6 +94,17 @@ class SparkJobs$Test extends TestSparkContext with DwCSparkHandler {
     checklist.count should be(1)
   }
 
+  "checklist" should "use dataframes to filter stuff with empty taxon selector" in {
+    val occurrenceMetaDFs: Seq[(_, DataFrame)] = readDwC
+    val df = occurrenceMetaDFs.head._2
+
+    val wkt: String = "ENVELOPE(4,5,52,50)"
+    val taxonNames: Seq[String] = Seq()
+
+    val checklist: RDD[(String, Int)] = ChecklistBuilder.buildChecklist(sc, df, wkt, taxonNames)
+    checklist.count should not be 0
+  }
+
   def traitsAndChecklist: (RDD[(String, Int)], RDD[Seq[(String, String)]]) = {
     traitAndChecklist("""bla | boo | Balaena mysticetus""")
   }
