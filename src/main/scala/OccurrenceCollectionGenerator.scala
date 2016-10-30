@@ -98,7 +98,7 @@ object OccurrenceCollectionGenerator {
       config.outputFormat.trim match {
         case "cassandra" =>
           selectors.value.foreach(selector => {
-            SparkUtil.console(s"saving [$selector]...")
+            SparkUtil.logInfo(s"saving [$selector]...")
             val occForSelector = normalizedOccurrenceCollection.filter(occ =>
               occ.taxonselector == selector.taxonSelector
                 && occ.wktstring == selector.wktString
@@ -115,12 +115,12 @@ object OccurrenceCollectionGenerator {
 
             sqlContext.sparkContext.parallelize(Seq((selector.taxonSelector, selector.wktString, selector.traitSelector, "ready", countBySelector)))
               .saveToCassandra("effechecka", "occurrence_collection_registry", CassandraUtil.occurrenceCollectionRegistryColumns, writeConf = writeConf)
-            SparkUtil.console(s"saved [$selector].")
+            SparkUtil.logInfo(s"saved [$selector].")
           }
           )
 
         case _ =>
-          SparkUtil.console(s"unsupported output format [${config.outputFormat}]")
+          SparkUtil.logInfo(s"unsupported output format [${config.outputFormat}]")
       }
     } finally {
       SparkUtil.stopAndExit(sc)

@@ -13,24 +13,23 @@ object SparkUtil {
   }
 
   def start(conf: SparkConf): SparkContext = {
-    console("sparkcontext starting...")
+    logInfo("sparkcontext starting...")
     val context: SparkContext = new SparkContext(conf)
-    console("sparkcontext started.")
+    logInfo("sparkcontext started.")
     context
   }
 
-  def console(msg: String): Unit = {
+  def logInfo(msg: String): Unit = {
     log.info(msg)
-    println(s"console: [$msg]")
   }
 
   def stopAndExit(sc: SparkContext): Unit = {
     println("sparkcontext stopping...")
     if (sc == null) {
-      console("no spark context found... assuming sparkcontext stopped.")
+      logInfo("no spark context found... assuming sparkcontext stopped.")
     } else {
       sc.stop()
-      console("sparkcontext stopped.")
+      logInfo("sparkcontext stopped.")
     }
     System.exit(0)
   }
