@@ -24,7 +24,7 @@ object SparkUtil {
   }
 
   def stopAndExit(sc: SparkContext): Unit = {
-    println("sparkcontext stopping...")
+    logInfo("sparkcontext stopping...")
     if (sc == null) {
       logInfo("no spark context found... assuming sparkcontext stopped.")
     } else {
