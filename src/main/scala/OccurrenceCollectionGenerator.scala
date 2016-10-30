@@ -1,10 +1,12 @@
-import com.datastax.spark.connector.writer.{WriteConf, TTLOption}
+import com.datastax.spark.connector.writer.{TTLOption, WriteConf}
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.sql.functions._
-import org.apache.spark.sql.{SaveMode, Dataset, DataFrame, SQLContext}
+import org.apache.spark.sql.{DataFrame, Dataset, SQLContext, SaveMode}
 import org.apache.spark.{SparkConf, SparkContext}
 import com.datastax.spark.connector.cql.CassandraConnector
 import com.datastax.spark.connector._
+import org.apache.commons.logging.LogFactory
+import org.slf4j.{Logger, LoggerFactory}
 
 import scala.collection.JavaConversions
 
@@ -50,9 +52,7 @@ object OccurrenceCollectionGenerator {
       .set("spark.cassandra.output.throughput_mb_per_sec", "5") // see https://www.instaclustr.com/blog/2016/03/31/cassandra-connector-for-spark-5-tips-for-success/
       .setAppName("occ2collection")
 
-
-
-    val sc = new SparkContext(conf)
+    val sc = SparkUtil.start(conf)
     try {
       val occurrenceSelectors = occurrenceSelectorsFor(config, sc)
 
@@ -98,7 +98,7 @@ object OccurrenceCollectionGenerator {
       config.outputFormat.trim match {
         case "cassandra" =>
           selectors.value.foreach(selector => {
-            println(s"saving [$selector]...")
+            SparkUtil.console(s"saving [$selector]...")
             val occForSelector = normalizedOccurrenceCollection.filter(occ =>
               occ.taxonselector == selector.taxonSelector
                 && occ.wktstring == selector.wktString
@@ -115,12 +115,12 @@ object OccurrenceCollectionGenerator {
 
             sqlContext.sparkContext.parallelize(Seq((selector.taxonSelector, selector.wktString, selector.traitSelector, "ready", countBySelector)))
               .saveToCassandra("effechecka", "occurrence_collection_registry", CassandraUtil.occurrenceCollectionRegistryColumns, writeConf = writeConf)
-            println(s"saved [$selector].")
+            SparkUtil.console(s"saved [$selector].")
           }
           )
 
         case _ =>
-          println(s"unsupported output format [${config.outputFormat}]")
+          SparkUtil.console(s"unsupported output format [${config.outputFormat}]")
       }
     } finally {
       SparkUtil.stopAndExit(sc)
