@@ -6,6 +6,7 @@ import org.apache.spark.{SparkConf, SparkContext}
 import com.datastax.spark.connector.cql.CassandraConnector
 import com.datastax.spark.connector._
 import org.apache.commons.logging.LogFactory
+import org.apache.spark.storage.StorageLevel
 import org.slf4j.{Logger, LoggerFactory}
 
 import scala.collection.JavaConversions
@@ -93,7 +94,7 @@ object OccurrenceCollectionGenerator {
       }
 
       val normalizedOccurrenceCollection = occurrenceCollection
-        .transform(normalize).cache()
+        .transform(normalize).persist(StorageLevel.MEMORY_AND_DISK)
 
       config.outputFormat.trim match {
         case "cassandra" =>
