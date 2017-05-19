@@ -93,7 +93,7 @@ object OccurrenceCollectionGenerator {
       }
 
       val normalizedOccurrenceCollection = occurrenceCollection
-        .transform(normalize)
+        .transform(normalize).cache()
 
       config.outputFormat.trim match {
         case "cassandra" =>
