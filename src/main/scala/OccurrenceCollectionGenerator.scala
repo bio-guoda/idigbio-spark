@@ -1,3 +1,4 @@
+import com.datastax.driver.core.HostDistance
 import com.datastax.spark.connector.writer.{TTLOption, WriteConf}
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.sql.functions._
@@ -131,6 +132,8 @@ object OccurrenceCollectionGenerator {
 
   def initCassandra(sqlContext: SQLContext): Unit = {
     CassandraConnector(sqlContext.sparkContext.getConf).withSessionDo { session =>
+      session.getCluster.getConfiguration.getPoolingOptions.setMaxConnectionsPerHost(HostDistance.LOCAL, 10)
+      session.getCluster.getConfiguration.getPoolingOptions.setMaxConnectionsPerHost(HostDistance.REMOTE, 10)
       session.execute(CassandraUtil.checklistKeySpaceCreate)
       session.execute(CassandraUtil.checklistTableCreate)
       session.execute(CassandraUtil.checklistRegistryTableCreate)
