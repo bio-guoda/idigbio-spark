@@ -347,14 +347,11 @@ object OccurrenceCollectionBuilder {
   def firstSeenOccurrences(sqlContext: SQLContext, occurrences: Dataset[SelectedOccurrence]): Dataset[SelectedOccurrence] = {
     import sqlContext.implicits._
 
-    // see http://stackoverflow.com/questions/40049076/spark-codegenerator-failed-to-compile-with-dataset-groupbykey
-    occurrences
-      .groupByKey(selOcc => (selOcc.occ.id, selOcc.selector))
-      .mapGroups((key, selOccs) => {
-        selOccs.reduce((agg, occ) => {
-          SelectedOccurrence(occ = DateUtil.selectFirstPublished(agg.occ, occ.occ), selector = key._2)
-        })
-      })
+    occurrences.rdd
+      .map(selOcc => ((selOcc.occ.id, selOcc.selector), selOcc))
+      .reduceByKey((agg, occ) => occ.copy(occ = DateUtil.selectFirstPublished(agg.occ, occ.occ)))
+      .map(_._2)
+      .toDS()
   }
 
 }
