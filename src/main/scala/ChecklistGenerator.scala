@@ -38,6 +38,7 @@ object ChecklistGenerator {
 
     val conf = new SparkConf()
       .set("spark.cassandra.connection.host", "localhost")
+      .set("spark.cassandra.connection.connections_per_executor_max", "2")
       .setAppName("occ2checklist")
     val sc = new SparkContext(conf)
     try {
