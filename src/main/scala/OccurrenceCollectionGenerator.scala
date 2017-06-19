@@ -48,7 +48,6 @@ object OccurrenceCollectionGenerator {
     val conf = new SparkConf()
       .set("spark.debug.maxToStringFields", "250") // see https://issues.apache.org/jira/browse/SPARK-15794
       .set("spark.cassandra.connection.host", "localhost")
-      .set("spark.cassandra.connection.connections_per_executor_max", "2")
       .set("spark.cassandra.output.batch.grouping.key", "None")
       .set("spark.cassandra.output.batch.size.rows", "10")
       .set("spark.cassandra.output.batch.size.bytes", "2048")
@@ -132,8 +131,6 @@ object OccurrenceCollectionGenerator {
 
   def initCassandra(sqlContext: SQLContext): Unit = {
     CassandraConnector(sqlContext.sparkContext.getConf).withSessionDo { session =>
-      session.getCluster.getConfiguration.getPoolingOptions.setMaxConnectionsPerHost(HostDistance.LOCAL, 10)
-      session.getCluster.getConfiguration.getPoolingOptions.setMaxConnectionsPerHost(HostDistance.REMOTE, 10)
       session.execute(CassandraUtil.checklistKeySpaceCreate)
       session.execute(CassandraUtil.checklistTableCreate)
       session.execute(CassandraUtil.checklistRegistryTableCreate)
