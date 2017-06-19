@@ -15,7 +15,6 @@ libraryDependencies ++= Seq(
   "org.locationtech.spatial4j" % "spatial4j" % "0.6",
   "com.vividsolutions" % "jts-core" % "1.14.0",
   "org.apache.spark" %% "spark-sql" % sparkV % "provided",
-  "org.apache.spark" %% "spark-streaming-kafka-0-8" % sparkV exclude ("org.spark-project.spark", "unused"),
   "com.datastax.spark" %% "spark-cassandra-connector" % "2.0.0-M3",
   "org.scalatest" %% "scalatest" % "2.2.5" % "test",
   "com.holdenkarau" %% "spark-testing-base" % s"${sparkV}_0.4.7" % "test"

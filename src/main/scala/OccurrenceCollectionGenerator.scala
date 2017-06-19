@@ -147,7 +147,6 @@ object OccurrenceCollectionGenerator {
       (sqlString, List())
     } else {
       val selectorConfig = toOccurrenceSelector(config)
-      sc.addSparkListener(new OccurrenceCollectionListener(selectorConfig))
       val withWhereClause = s"$sqlString WHERE taxonselector = ? AND wktstring = ? AND traitselector = ?"
       (withWhereClause, List(selectorConfig.taxonSelector, selectorConfig.wktString, selectorConfig.traitSelector))
     }
