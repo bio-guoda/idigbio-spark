@@ -124,6 +124,8 @@ object OccurrenceCollectionGenerator {
         case _ =>
           SparkUtil.logInfo(s"unsupported output format [${config.outputFormat}]")
       }
+    } catch {
+      case e: Throwable => LogFactory.getLog(getClass).error("failed to generate checklist", e)
     } finally {
       SparkUtil.stopAndExit(sc)
     }
