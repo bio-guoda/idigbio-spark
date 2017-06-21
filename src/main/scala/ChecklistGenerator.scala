@@ -39,7 +39,6 @@ object ChecklistGenerator {
     val wktString = config.geoSpatialSelector.trim
 
     val conf = new SparkConf()
-      .set("spark.cassandra.connection.host", "localhost")
       .setAppName("occ2checklist")
     val sc = new SparkContext(conf)
     try {
