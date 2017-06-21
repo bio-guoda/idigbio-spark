@@ -6,6 +6,7 @@ import org.apache.spark.sql.{DataFrame, SQLContext}
 import org.apache.spark.{SparkConf, SparkContext}
 import com.datastax.spark.connector.cql.CassandraConnector
 import com.datastax.spark.connector._
+import org.apache.commons.logging.LogFactory
 import org.globalnames.parser.ScientificNameParser.{instance => snp}
 import org.json4s._
 
@@ -71,7 +72,10 @@ object ChecklistGenerator {
         case _ => checklist.map(item => List(taxonSelectorString, wktString, traitSelectorString, item._1, item._2).mkString(","))
           .saveAsTextFile(occurrenceFile + ".checklist" + System.currentTimeMillis)
       }
-    } finally {
+    } catch {
+      case e: Throwable => LogFactory.getLog(getClass).error("failed to generate checklist", e)
+    }
+    finally {
       SparkUtil.stopAndExit(sc)
     }
   }
