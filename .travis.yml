@@ -13,7 +13,7 @@ deploy:
   secret_access_key:
     secure: KoFLvGjnxNYh/MHPQTuZUue/Jc9h6lP/ysMTyaHGKBXT30VokNUAw6bMFoNBiXkkTIMU3Fhyok1EjL1VUfV0uv2/r1Md00OwXuLeZ1fO7e9ZMNO7QaNHkFYDf5gjo9Gi4AlO7dzjr2cIfKsIdT93V46deMDF6ivyBEUdLwhINYu3sGqG/YlH5cw5GARcHc9OF36gdkTn4YnlpYAPqzvrG31bP8cYJolb8iYnegIUVeDY8tDqZv93dCebyO0msN/B08D0Qt4mJz+a8qI2s0PS6MtOqmwEENSIiWnVQ+zdBbv79syTjQqXD6olnrWIPSkzmr2/QGQ+E+FZZ6gWagkEv+b3IdUgQZAnT/KMJ1KtymYfdewurTdLgEgm7VkXK9eJs7T3kH0VvaKbp/VnxDpjjWAlNJuwefzEIpCz/qG4kEJw/tXk1zjUSCAmSCgVPpJ3iDdBIVfBNJj6KsHufcWMT4fgpM/cSb/UlCPK47CKsg4jKZkXwcjCmpulelQBQoZiPdoFrtlZPOKMmfWOrJBFaqtXlRXIrmDnTO3qO3iOwQL0EpXqOpQZUGNr+IUj+1Hon2pDOM1n+RKZji4bsbB/Kz1SdbnBW/3ejn3lWrR4/kDeQBjm01tjPGba7doTHfD8rzan58UmN3fsigKDqT+LmefO9tFFCWLNSDUv40n6fFs=
   bucket: guoda
-  local-dir: target/scala-2.11
+  local-dir: /home/travis/build/bio-guoda/idigbio-spark/target/scala-2.11/
   upload-dir: idigbio-spark
   acl: public_read
   on:
