@@ -8,6 +8,7 @@ cache:
   directories:
   - "$HOME/.ivy2"
 deploy:
+  skip_cleanup: true
   provider: s3
   access_key_id: AKIAINXCGN4CQHR2NZEA
   secret_access_key:
