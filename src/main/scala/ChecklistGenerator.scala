@@ -1,12 +1,16 @@
+import java.util.Date
+
 import au.com.bytecode.opencsv.CSVParser
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.functions._
-import org.apache.spark.sql.{DataFrame, SQLContext}
+import org.apache.spark.sql.{DataFrame, SQLContext, SaveMode}
 import org.apache.spark.{SparkConf, SparkContext}
 import com.datastax.spark.connector.cql.CassandraConnector
 import com.datastax.spark.connector._
 import org.apache.commons.logging.LogFactory
+import org.effechecka.selector.UuidUtils
 import org.globalnames.parser.ScientificNameParser.{instance => snp}
+import org.joda.time.DateTime
 import org.json4s._
 
 object SQLContextSingleton {
@@ -19,7 +23,6 @@ object SQLContextSingleton {
     instance
   }
 }
-
 
 
 object ChecklistGenerator {
@@ -57,10 +60,20 @@ object ChecklistGenerator {
             .saveToCassandra("effechecka", "checklist_registry", CassandraUtil.checklistRegistryColumns)
         }
 
-        case "hdfs" =>
 
-        // write to occurrencesForMonitor --> checklist
-        // write/add/to to checklist summary (count, top20?, date created)
+        case "hdfs" => {
+          import sqlContext.implicits._
+
+          val checklistPath = s"${config.outputPath}/${UuidUtils.pathForSelector(selector)}/checklist"
+          checklist.cache().toDS.as[ChecklistItem]
+            .write.mode(SaveMode.Overwrite)
+            .parquet(s"$checklistPath/spark.parquet")
+
+          val selectorWithUUID = selector.withUUID
+          sqlContext.createDataset(Seq(Checklist(selectorWithUUID.taxonSelector, selectorWithUUID.wktString, selectorWithUUID.traitSelector, selectorWithUUID.uuid.getOrElse(""), checklist.count(), DateTime.now().toDate)))
+            .write.mode(SaveMode.Overwrite)
+            .parquet(s"$checklistPath/summary.parquet")
+        }
 
         case _ => checklist.map(item => List(selector.taxonSelector, selector.wktString, selector.traitSelector, item._1, item._2).mkString(","))
           .saveAsTextFile(occurrenceFile + ".checklist" + System.currentTimeMillis)
@@ -147,6 +160,9 @@ object ChecklistGenerator {
       opt[String]('f', "output-format") optional() valueName "<output format>" action { (x, c) =>
         c.copy(outputFormat = x)
       } text "output format"
+      opt[String]('o', "output-path") optional() valueName "<output path>" action { (x, c) =>
+        c.copy(outputPath = x)
+      } text "output path"
       opt[String]('c', "<occurrence url>") required() action { (x, c) =>
         c.copy(occurrenceFiles = splitAndClean(x))
       } text "list of occurrence archive urls"
