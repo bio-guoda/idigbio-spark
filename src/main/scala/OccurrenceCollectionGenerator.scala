@@ -1,4 +1,3 @@
-import com.datastax.driver.core.HostDistance
 import com.datastax.spark.connector.writer.{TTLOption, WriteConf}
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.sql.functions._
@@ -8,7 +7,7 @@ import com.datastax.spark.connector.cql.CassandraConnector
 import com.datastax.spark.connector._
 import org.apache.commons.logging.LogFactory
 import org.apache.spark.storage.StorageLevel
-import org.slf4j.{Logger, LoggerFactory}
+import org.effechecka.selector.OccurrenceSelector
 
 import scala.collection.JavaConversions
 
@@ -38,7 +37,6 @@ case class OccurrenceCassandra(lat: String,
                                wktstring: String,
                                traitselector: String)
 
-case class OccurrenceSelector(taxonSelector: String = "", wktString: String = "", traitSelector: String = "", ttlSeconds: Option[Int] = None)
 
 object OccurrenceCollectionGenerator {
 
@@ -99,7 +97,7 @@ object OccurrenceCollectionGenerator {
       config.outputFormat.trim match {
         case "cassandra" =>
           selectors.value.foreach(selector => {
-            SparkUtil.logInfo(s"saving [$selector]...")
+            SparkUtil.logInfo(s"saving [$selector] to cassandra...")
             val occForSelector = normalizedOccurrenceCollection.filter(occ =>
               occ.taxonselector == selector.taxonSelector
                 && occ.wktstring == selector.wktString
@@ -119,6 +117,13 @@ object OccurrenceCollectionGenerator {
             SparkUtil.logInfo(s"saved [$selector].")
           }
           )
+
+        case "hdfs" =>
+          // write to monitorsForOccurrences
+          // write to occurrencesForMonitor
+          // write to occurrencesForSource
+          // write to monitor summary (count, top20?, date created)
+          // write to uuid / selector mapping
 
         case _ =>
           SparkUtil.logInfo(s"unsupported output format [${config.outputFormat}]")
@@ -148,7 +153,7 @@ object OccurrenceCollectionGenerator {
     val (query, params) = if (config.applyAllSelectors) {
       (sqlString, List())
     } else {
-      val selectorConfig = toOccurrenceSelector(config)
+      val selectorConfig = OccurrenceSelectors.toOccurrenceSelector(config)
       val withWhereClause = s"$sqlString WHERE taxonselector = ? AND wktstring = ? AND traitselector = ?"
       (withWhereClause, List(selectorConfig.taxonSelector, selectorConfig.wktString, selectorConfig.traitSelector))
     }
@@ -163,7 +168,7 @@ object OccurrenceCollectionGenerator {
       } else {
         Some(row.getInt(3))
       }
-      OccurrenceSelector(row.getString(0), row.getString(1), row.getString(2), ttlSeconds)
+      OccurrenceSelector(row.getString(0), row.getString(1), row.getString(2), ttlSeconds = ttlSeconds)
     }
     ).toSeq
   }
@@ -174,16 +179,6 @@ object OccurrenceCollectionGenerator {
   }
 
 
-  def toOccurrenceSelector(config: ChecklistConf): OccurrenceSelector = {
-    val taxonSelector = config.taxonSelector
-    val traitSelectors = config.traitSelector
-
-    val wktString = config.geoSpatialSelector.trim
-    val taxonSelectorString: String = taxonSelector.mkString("|")
-    val traitSelectorString: String = traitSelectors.mkString("|")
-
-    OccurrenceSelector(taxonSelectorString, wktString, traitSelectorString)
-  }
 
   def saveCollectionToCassandra(sqlContext: SQLContext, occurrenceCollection: Dataset[OccurrenceCassandra], ttl: Option[Int] = None): Unit = {
     import sqlContext.implicits._

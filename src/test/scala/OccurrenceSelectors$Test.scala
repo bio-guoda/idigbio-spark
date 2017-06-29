@@ -1,5 +1,6 @@
 import org.scalatest._
 import OccurrenceSelectors._
+import org.effechecka.selector.OccurrenceSelector
 
 class OccurrenceSelectors$Test extends FlatSpec with Matchers {
 

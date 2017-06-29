@@ -1,5 +1,4 @@
 import au.com.bytecode.opencsv.CSVParser
-import com.datastax.driver.core.HostDistance
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.{DataFrame, SQLContext}
@@ -21,22 +20,15 @@ object SQLContextSingleton {
   }
 }
 
-case class ChecklistConf(occurrenceFiles: Seq[String] = Seq()
-                         , traitFiles: Seq[String] = Seq()
-                         , traitSelector: Seq[String] = Seq()
-                         , taxonSelector: Seq[String] = Seq()
-                         , geoSpatialSelector: String = ""
-                         , outputFormat: String = "cassandra"
-                         , applyAllSelectors: Boolean = false
-                         , firstSeenOnly: Boolean = true)
+
 
 object ChecklistGenerator {
 
   def generateChecklist(config: ChecklistConf) {
     val occurrenceFile = config.occurrenceFiles.head
-    val taxonSelector = config.taxonSelector
-    val taxonSelectorString: String = taxonSelector.mkString("|")
-    val wktString = config.geoSpatialSelector.trim
+    val traitsFile = config.traitFiles.head.trim
+
+    val selector = OccurrenceSelectors.toOccurrenceSelector(config)
 
     val conf = new SparkConf()
       .setAppName("occ2checklist")
@@ -44,15 +36,12 @@ object ChecklistGenerator {
     try {
       val sqlContext = SQLContextSingleton.getInstance(sc)
       val occurrences: DataFrame = ParquetUtil.readParquet(path = occurrenceFile, sqlContext = sqlContext)
-      val occChecklist = ChecklistBuilder.buildChecklist(sc, occurrences, wktString, taxonSelector)
+      val occChecklist = ChecklistBuilder.buildChecklist(sc, occurrences, selector.wktString, config.taxonSelector)
 
-      val traitSelectors = config.traitSelector
-      val traitSelectorString: String = traitSelectors.mkString("|")
-      val traitsFile = config.traitFiles.head.trim
 
       val traits: RDD[Seq[(String, String)]] = parseCSV(traitsFile, sc)
 
-      val checklist = filterByTraits(occChecklist, traits, traitSelectors)
+      val checklist = filterByTraits(occChecklist, traits, config.traitSelector)
 
       config.outputFormat.trim match {
         case "cassandra" => {
@@ -61,14 +50,19 @@ object ChecklistGenerator {
             session.execute(CassandraUtil.checklistRegistryTableCreate)
             session.execute(CassandraUtil.checklistTableCreate)
           }
-          checklist.cache().map(item => (taxonSelectorString, wktString, traitSelectorString, item._1, item._2))
+          checklist.cache().map(item => (selector.taxonSelector, selector.wktString, selector.traitSelector, item._1, item._2))
             .saveToCassandra("effechecka", "checklist", CassandraUtil.checklistColumns)
 
-          sc.parallelize(Seq((taxonSelectorString, wktString, traitSelectorString, "ready", checklist.count())))
+          sc.parallelize(Seq((selector.taxonSelector, selector.wktString, selector.traitSelector, "ready", checklist.count())))
             .saveToCassandra("effechecka", "checklist_registry", CassandraUtil.checklistRegistryColumns)
         }
 
-        case _ => checklist.map(item => List(taxonSelectorString, wktString, traitSelectorString, item._1, item._2).mkString(","))
+        case "hdfs" =>
+
+        // write to occurrencesForMonitor --> checklist
+        // write/add/to to checklist summary (count, top20?, date created)
+
+        case _ => checklist.map(item => List(selector.taxonSelector, selector.wktString, selector.traitSelector, item._1, item._2).mkString(","))
           .saveAsTextFile(occurrenceFile + ".checklist" + System.currentTimeMillis)
       }
     } catch {

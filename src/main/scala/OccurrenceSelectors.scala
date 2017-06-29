@@ -1,3 +1,5 @@
+import org.effechecka.selector.OccurrenceSelector
+
 object OccurrenceSelectors {
 
   type OccurrenceFilter = (Occurrence) => Boolean
@@ -51,5 +53,17 @@ object OccurrenceSelectors {
     x => Seq(traitSelector _, taxonSelector _, geoSpatialSelector _)
       .forall(_ (config)(x))
   }
+
+  def toOccurrenceSelector(config: ChecklistConf): OccurrenceSelector = {
+    val wktString = config.geoSpatialSelector.trim
+    val taxonSelector = config.taxonSelector
+    val taxonSelectorString: String = taxonSelector.mkString("|")
+
+    val traitSelectors = config.traitSelector
+    val traitSelectorString: String = traitSelectors.mkString("|")
+
+    OccurrenceSelector(taxonSelectorString, wktString, traitSelectorString)
+  }
+
 }
 

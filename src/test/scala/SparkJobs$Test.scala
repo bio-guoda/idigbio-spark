@@ -9,6 +9,7 @@ import org.apache.spark.SparkConf
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.{DataFrame, Dataset, Row, SQLContext}
+import org.effechecka.selector.OccurrenceSelector
 import org.scalatest._
 import org.scalatest.OptionValues._
 
@@ -191,13 +192,13 @@ class SparkJobs$Test extends TestSparkContext with DwCSparkHandler {
   }
 
   "broadcast a monitor with ttl" should "serialize" in {
-    val occurrenceSelectors = Seq(OccurrenceSelector("some taxa", "some wkt", "some trait", Some(123)))
+    val occurrenceSelectors = Seq(OccurrenceSelector("some taxa", "some wkt", "some trait", ttlSeconds = Some(123)))
     val broadcasted = sc.broadcast(occurrenceSelectors)
     occurrenceSelectors should be(broadcasted.value)
   }
 
   "broadcast a monitor with no ttl" should "serialize" in {
-    val occurrenceSelectors = Seq(OccurrenceSelector("some taxa", "some wkt", "some trait", None))
+    val occurrenceSelectors = Seq(OccurrenceSelector("some taxa", "some wkt", "some trait", ttlSeconds = None))
     val broadcasted = sc.broadcast(occurrenceSelectors)
     occurrenceSelectors should be(broadcasted.value)
   }
@@ -218,7 +219,7 @@ class SparkJobs$Test extends TestSparkContext with DwCSparkHandler {
     }
 
     val selectorsAfter: Seq[OccurrenceSelector] = OccurrenceCollectionGenerator.occurrenceSelectorsFor(ChecklistConf(applyAllSelectors = true), sc)
-    selectorsAfter should contain(OccurrenceSelector("Mammalia|Insecta", "LINE(1 2 3 4)", "bodyMass greaterThan 19 g", Some(15552000)))
+    selectorsAfter should contain(OccurrenceSelector("Mammalia|Insecta", "LINE(1 2 3 4)", "bodyMass greaterThan 19 g", ttlSeconds = Some(15552000)))
     selectorsAfter should not contain (OccurrenceSelector("Mammalia|Insecta", "LINE(1 2 3 4)", "bodyMass greaterThan 20 g"))
 
     val secondWithTtl = selectorsAfter.filter(_.ttlSeconds.isDefined).tail.head
