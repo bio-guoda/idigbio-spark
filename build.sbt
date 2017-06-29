@@ -12,8 +12,7 @@ libraryDependencies ++= Seq(
   "com.github.scopt" %% "scopt" % "3.3.0",
   "io.spray" %%  "spray-json" % "1.3.2",
   "org.globalnames" %% "gnparser" % "0.3.3",
-  "org.locationtech.spatial4j" % "spatial4j" % "0.6",
-  "com.vividsolutions" % "jts-core" % "1.14.0",
+  "org.effechecka" %% "effechecka-selector" % "0.0.2-SNAPSHOT",
   "org.apache.spark" %% "spark-sql" % sparkV % "provided",
   "com.datastax.spark" %% "spark-cassandra-connector" % "2.0.0-M3",
   "org.scalatest" %% "scalatest" % "3.0.1" % "test",
@@ -25,3 +24,5 @@ test in assembly := {}
 javaOptions ++= Seq("-Xms512M", "-Xmx2048M", "-XX:+CMSClassUnloadingEnabled")
 
 resolvers += Resolver.sonatypeRepo("public")
+resolvers += "effechecka-snapshots" at "https://s3.amazonaws.com/effechecka/snapshots"
+
