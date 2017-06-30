@@ -207,7 +207,7 @@ object ChecklistBuilder {
         .filter(p => SpatialFilter.locatedInLatLng(wkt, Seq(p._1, p._2)))
         .map(p => (p._3, 1))
         .rdd.reduceByKey(_ + _)
-        //.sortBy(_._2, ascending = false)
+        .sortBy(_._2, ascending = false)
     } else {
       sc.emptyRDD[(String, Int)]
     }
