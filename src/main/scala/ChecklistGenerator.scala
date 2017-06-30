@@ -64,16 +64,18 @@ object ChecklistGenerator {
         case "hdfs" => {
           import sqlContext.implicits._
 
-          val checklistPath = s"${config.outputPath}/${UuidUtils.pathForSelector(selector)}/checklist"
+          val checklistPath = s"${config.outputPath}/checklist/${UuidUtils.pathForSelector(selector)}/checklist.parquet"
           checklist.cache().map { case (taxonName, count) => ChecklistItem(taxonName, count) }.toDS()
             .coalesce(1)
             .write.mode(SaveMode.Overwrite)
-            .parquet(s"$checklistPath/spark.parquet")
+            .parquet(s"$checklistPath")
 
+          val checklistSummaryPath = s"${config.outputPath}/checklist-summary/${UuidUtils.pathForSelector(selector)}/summary.parquet"
           val selectorWithUUID = selector.withUUID
           sqlContext.createDataset(Seq(Checklist(selectorWithUUID.taxonSelector, selectorWithUUID.wktString, selectorWithUUID.traitSelector, selectorWithUUID.uuid.getOrElse(""), checklist.count(), DateTime.now().toDate.getTime)))
+            .coalesce(1)
             .write.mode(SaveMode.Overwrite)
-            .parquet(s"$checklistPath/summary.parquet")
+            .parquet(s"$checklistSummaryPath")
         }
 
         case _ => checklist.map(item => List(selector.taxonSelector, selector.wktString, selector.traitSelector, item._1, item._2).mkString(","))
