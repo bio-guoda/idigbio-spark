@@ -65,7 +65,7 @@ object ChecklistGenerator {
           import sqlContext.implicits._
 
           val checklistPath = s"${config.outputPath}/${UuidUtils.pathForSelector(selector)}/checklist"
-          checklist.cache().toDS.as[ChecklistItem]
+          checklist.cache().map { case (taxonName, count) => ChecklistItem(taxonName, count) }.toDS()
             .write.mode(SaveMode.Overwrite)
             .parquet(s"$checklistPath/spark.parquet")
 

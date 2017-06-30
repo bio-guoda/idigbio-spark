@@ -7,7 +7,8 @@ import com.datastax.spark.connector.cql.CassandraConnector
 import com.datastax.spark.connector._
 import org.apache.commons.logging.LogFactory
 import org.apache.spark.storage.StorageLevel
-import org.effechecka.selector.OccurrenceSelector
+import org.effechecka.selector.{OccurrenceSelector, UuidUtils}
+import org.joda.time.DateTime
 
 import scala.collection.JavaConversions
 
@@ -119,7 +120,7 @@ object OccurrenceCollectionGenerator {
           )
 
         case "hdfs" =>
-          // write to monitorsForOccurrences
+        // write to monitorsForOccurrences
           // write to occurrencesForMonitor
           // write to occurrencesForSource
           // write to monitor summary (count, top20?, date created)
