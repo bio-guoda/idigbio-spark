@@ -70,7 +70,7 @@ object ChecklistGenerator {
             .parquet(s"$checklistPath/spark.parquet")
 
           val selectorWithUUID = selector.withUUID
-          sqlContext.createDataset(Seq(Checklist(selectorWithUUID.taxonSelector, selectorWithUUID.wktString, selectorWithUUID.traitSelector, selectorWithUUID.uuid.getOrElse(""), checklist.count(), DateTime.now().toDate)))
+          sqlContext.createDataset(Seq(Checklist(selectorWithUUID.taxonSelector, selectorWithUUID.wktString, selectorWithUUID.traitSelector, selectorWithUUID.uuid.getOrElse(""), checklist.count(), DateTime.now().toDate.getTime)))
             .write.mode(SaveMode.Overwrite)
             .parquet(s"$checklistPath/summary.parquet")
         }
