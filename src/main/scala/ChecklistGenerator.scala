@@ -66,6 +66,7 @@ object ChecklistGenerator {
 
           val checklistPath = s"${config.outputPath}/${UuidUtils.pathForSelector(selector)}/checklist"
           checklist.cache().map { case (taxonName, count) => ChecklistItem(taxonName, count) }.toDS()
+            .coalesce(1)
             .write.mode(SaveMode.Overwrite)
             .parquet(s"$checklistPath/spark.parquet")
 
