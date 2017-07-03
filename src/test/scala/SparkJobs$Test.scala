@@ -208,7 +208,7 @@ class SparkJobs$Test extends TestSparkContext with DwCSparkHandler {
     val someSelectors = Seq(("Mammalia|Insecta", "LINE(1 2 3 4)", "bodyMass greaterThan 19 g", "status", 1)
       , ("Mammalia|Insecta", "LINE(1 2 3 4)", "bodyMass greaterThan 20 g", "other status", 1))
 
-    val selectorsBefore: Seq[OccurrenceSelector] = OccurrenceCollectionGenerator.occurrenceSelectorsFor(ChecklistConf(applyAllSelectors = true), sc)
+    val selectorsBefore: Seq[OccurrenceSelector] = new OccurrenceCollectorCassandra().occurrenceSelectorsFor(ChecklistConf(applyAllSelectors = true), sc)
     selectorsBefore.length should be(0)
 
     CassandraConnector(sc.getConf).withSessionDo { session =>
@@ -218,7 +218,7 @@ class SparkJobs$Test extends TestSparkContext with DwCSparkHandler {
         s"('Mammalia|Insecta','LINE(1 2 3 4)','bodyMass greaterThan 20 g', dateOf(NOW())) USING TTL 100")
     }
 
-    val selectorsAfter: Seq[OccurrenceSelector] = OccurrenceCollectionGenerator.occurrenceSelectorsFor(ChecklistConf(applyAllSelectors = true), sc)
+    val selectorsAfter: Seq[OccurrenceSelector] = new OccurrenceCollectorCassandra().occurrenceSelectorsFor(ChecklistConf(applyAllSelectors = true), sc)
     selectorsAfter should contain(OccurrenceSelector("Mammalia|Insecta", "LINE(1 2 3 4)", "bodyMass greaterThan 19 g", ttlSeconds = Some(15552000)))
     selectorsAfter should not contain (OccurrenceSelector("Mammalia|Insecta", "LINE(1 2 3 4)", "bodyMass greaterThan 20 g"))
 
@@ -237,14 +237,14 @@ class SparkJobs$Test extends TestSparkContext with DwCSparkHandler {
         s"('Mammalia|Insecta','LINE(1 2 3 4)','bodyMass greaterThan 20 g', dateOf(NOW())) USING TTL 100")
     }
 
-    val selectorsAfter: Seq[OccurrenceSelector] = OccurrenceCollectionGenerator.occurrenceSelectorsFor(ChecklistConf(applyAllSelectors = true), sc)
+    val selectorsAfter: Seq[OccurrenceSelector] = new OccurrenceCollectorCassandra().occurrenceSelectorsFor(ChecklistConf(applyAllSelectors = true), sc)
     selectorsAfter should be(sc.broadcast(selectorsAfter).value)
   }
 
   def prepareCassandra() = {
     try {
       println("preparing cassandra...")
-      OccurrenceCollectionGenerator.initCassandra(new SQLContext(sc))
+      OccurrenceCollectorCassandraUtil.initCassandra(new SQLContext(sc))
       truncateTables()
     } catch {
       case e: IOException => {
@@ -388,7 +388,7 @@ class SparkJobs$Test extends TestSparkContext with DwCSparkHandler {
       id = "some id", source = "some data source",
       taxonselector = "some taxonselector", wktstring = "some wktstring", traitselector = "some traitselector"))
 
-    OccurrenceCollectionGenerator.saveCollectionToCassandra(sqlContext,
+    new OccurrenceCollectorCassandra().saveCollectionToCassandra(sqlContext,
       occurrenceCollection = sqlContext.createDataset(occurrences))
 
     val df = sqlContext
