@@ -51,7 +51,7 @@ class OccurrenceCollectorHDFS extends OccurrenceCollector {
 
     val selectors: Broadcast[Seq[OccurrenceSelector]] = sc.broadcast(occurrenceSelectors)
     val occurrenceCollection = occurrenceCollectionsFor(config, sqlContext, selectors)
-    writeToParquet(occurrenceCollection.coalesce(10).persist(StorageLevel.MEMORY_AND_DISK), config.outputPath, saveMode)
+    writeToParquet(occurrenceCollection, config.outputPath, saveMode)
   }
 
   def allSelectorsFor(sqlContext: SQLContext, outputPath: String) = {
@@ -95,6 +95,7 @@ class OccurrenceCollectorHDFS extends OccurrenceCollector {
     }
 
     occurrencesMapped
+      .coalesce(10)
       .write
       .mode(saveMode)
       .partitionBy("u0", "u1", "u2", "uuid", "y", "m", "d")
@@ -116,6 +117,7 @@ class OccurrenceCollectorHDFS extends OccurrenceCollector {
           monitorUUID = occ.uuid
         )
       }
+      .coalesce(10)
       .write
       .mode(saveMode)
       .partitionBy("u0", "u1", "u2", "uuid")
@@ -125,6 +127,7 @@ class OccurrenceCollectorHDFS extends OccurrenceCollector {
       .map { occSelected =>
         SourceMonitoredOccurrenceHDFS(occSelected.occ.source, occSelected.occ.id)
       }
+      .coalesce(10)
       .write
       .mode(saveMode)
       .partitionBy("source")
@@ -152,6 +155,7 @@ class OccurrenceCollectorHDFS extends OccurrenceCollector {
           itemCount = count
         )
       }
+      .coalesce(10)
       .write
       .mode(SaveMode.Append)
       .partitionBy("u0", "u1", "u2", "uuid")
