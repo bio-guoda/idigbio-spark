@@ -12,10 +12,9 @@ trait OccurrenceCollector {
     import sqlContext.implicits._
     val applySelectors = buildOccurrenceSelector(config)
     val occurrenceFile = config.occurrenceFiles.head
-    val occurrenceCollection = load(occurrenceFile, sqlContext).transform[SelectedOccurrence]({ ds =>
+    load(occurrenceFile, sqlContext).transform[SelectedOccurrence]({ ds =>
       applySelectors(sqlContext, ds, selectors.value)
     })
-    occurrenceCollection
   }
 
   private def buildOccurrenceSelector(config: ChecklistConf) = {

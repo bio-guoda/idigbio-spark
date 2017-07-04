@@ -9,6 +9,18 @@ import com.datastax.spark.connector._
 
 import scala.collection.JavaConversions
 
+case class OccurrenceCassandra(lat: String,
+                               lng: String,
+                               taxon: String,
+                               id: String,
+                               added: Long,
+                               source: String,
+                               start: Long,
+                               end: Long,
+                               taxonselector: String,
+                               wktstring: String,
+                               traitselector: String)
+
 object OccurrenceCollectorCassandraUtil {
   def initCassandra(sqlContext: SQLContext): Unit = {
     CassandraConnector(sqlContext.sparkContext.getConf).withSessionDo { session =>

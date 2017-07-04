@@ -17,17 +17,6 @@ case class MonitoredOccurrence(source: String, id: String, taxonselector: String
 
 case class FirstOccurrence(source: String, added: Long, id: String)
 
-case class OccurrenceCassandra(lat: String,
-                               lng: String,
-                               taxon: String,
-                               id: String,
-                               added: Long,
-                               source: String,
-                               start: Long,
-                               end: Long,
-                               taxonselector: String,
-                               wktstring: String,
-                               traitselector: String)
 
 
 object OccurrenceCollectionGenerator {

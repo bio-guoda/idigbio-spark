@@ -1,14 +1,15 @@
-import java.io.IOException
+import java.io.{File, IOException}
 
 import OccurrenceCollectionBuilder._
 import au.com.bytecode.opencsv.CSVParser
 import com.datastax.spark.connector._
 import com.datastax.spark.connector.cql.CassandraConnector
 import com.holdenkarau.spark.testing.SharedSparkContext
+import org.apache.commons.io.FileUtils
 import org.apache.spark.SparkConf
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.functions._
-import org.apache.spark.sql.{DataFrame, Dataset, Row, SQLContext}
+import org.apache.spark.sql._
 import org.effechecka.selector.OccurrenceSelector
 import org.scalatest._
 import org.scalatest.OptionValues._
@@ -362,8 +363,9 @@ class SparkJobs$Test extends TestSparkContext with DwCSparkHandler {
 
   def readDwC: Seq[(String, DataFrame)] = {
     readDwCNoSource.map {
-      fileDF => (fileDF._1,
-        fileDF._2.withColumn("date", date_format(current_date(), "yyyyMMdd")).withColumn("source", col("`http://rs.tdwg.org/dwc/terms/institutionCode`")))
+      fileDF =>
+        (fileDF._1,
+          fileDF._2.withColumn("date", date_format(current_date(), "yyyyMMdd")).withColumn("source", col("`http://rs.tdwg.org/dwc/terms/institutionCode`")))
     }
   }
 
@@ -415,6 +417,67 @@ class SparkJobs$Test extends TestSparkContext with DwCSparkHandler {
 
     searchesFirstAdded.first.getAs[String]("source") should be("some data source")
     searchesFirstAdded.first.getAs[String]("id") should be("some id")
+
+  }
+
+  "occurrence collection" should "be saved to hdfs" in {
+    val testPath = "target/some/hdfs"
+    FileUtils.deleteDirectory(new File(testPath))
+    val sqlContext = new SQLContext(sc)
+    import sqlContext.implicits._
+
+    val occurrences = Seq(SelectedOccurrence(Occurrence(lat = "11.4", lng = "12.2",
+      taxonPath = "Animalia|Mammalia", eventDate = "2017-01-01",
+      id = "http://www.inaturalist.org/observations/1053719", source = "some data source", sourceDate = "20170703"),
+      OccurrenceSelector("Animalia|Insecta", "ENVELOPE(-150,-50,40,10)", "")))
+
+    val occurrences2 = Seq(SelectedOccurrence(Occurrence(lat = "11.4", lng = "12.2",
+      taxonPath = "Animalia|Aves", eventDate = "2017-01-01",
+      id = "http://www.inaturalist.org/observations/1053720", source = "some data source", sourceDate = "20170703"),
+      OccurrenceSelector("Animalia|Insecta", "ENVELOPE(-150,-50,40,10)", "")))
+
+    scala.reflect.io.File(testPath).exists should be(false)
+    new OccurrenceCollectorHDFS().writeToParquet(occurrences.toDS(), testPath)
+    scala.reflect.io.File(testPath).exists should be(true)
+
+    val occurrenceRead = sqlContext.read.parquet(testPath + "/occurrence")
+    occurrenceRead.count() should be(1)
+    occurrenceRead.select("taxon").as[String].take(1) should be(Array("Animalia|Mammalia"))
+    occurrenceRead.select("lat").as[String].take(1) should be(Array("11.4"))
+    occurrenceRead.select("lng").as[String].take(1) should be(Array("12.2"))
+    occurrenceRead.select("y").as[String].take(1) should be(Array("2017"))
+    occurrenceRead.select("m").as[String].take(1) should be(Array("7"))
+    occurrenceRead.select("d").as[String].take(1) should be(Array("3"))
+    occurrenceRead.select("uuid").as[String].take(1) should be(Array("55e4b0a0-bcd9-566f-99bc-357439011d85"))
+
+    val occurrenceSummaryRead = sqlContext.read.parquet(testPath + "/occurrence-summary")
+    occurrenceSummaryRead.count() should be(1)
+    occurrenceSummaryRead.select("uuid").as[String].take(1) should be(Array("55e4b0a0-bcd9-566f-99bc-357439011d85"))
+    occurrenceSummaryRead.select("count").as[Long].take(1) should be(Array(1L))
+
+    val monitorOfOcurrenceRead = sqlContext.read.parquet(testPath + "/monitor-of-occurrence")
+    monitorOfOcurrenceRead.select("uuid").as[String].take(1) should be(Array("baa722b5-7b86-5d11-82f8-e516c86156c9"))
+    monitorOfOcurrenceRead.select("monitorUUID").as[String].take(1) should be(Array("55e4b0a0-bcd9-566f-99bc-357439011d85"))
+    monitorOfOcurrenceRead.select("source").as[String].take(1) should be(Array("some data source"))
+
+    val sourceOfMonitoredOccurrences = sqlContext.read.parquet(testPath + "/source-of-monitored-occurrence")
+    sourceOfMonitoredOccurrences.select("source").as[String].take(1) should be(Array("some data source"))
+
+    new OccurrenceCollectorHDFS().writeToParquet(occurrences2.toDS(), testPath)
+    val occurrenceRead2 = sqlContext.read.parquet(testPath + "/occurrence")
+    occurrenceRead2.select("taxon").as[String].take(2) should be(Array("Animalia|Mammalia", "Animalia|Aves"))
+    occurrenceRead2.count() should be(2)
+
+    new OccurrenceCollectorHDFS().writeToParquet(occurrences.toDS(), testPath)
+    val occurrenceRead3 = sqlContext.read.parquet(testPath + "/occurrence")
+    occurrenceRead3.select("taxon").as[String].take(3) should be(Array("Animalia|Mammalia", "Animalia|Mammalia", "Animalia|Aves"))
+    occurrenceRead3.count() should be(3)
+
+    new OccurrenceCollectorHDFS().writeToParquet(occurrences.toDS(), testPath, SaveMode.Overwrite)
+    val occurrenceRead4 = sqlContext.read.parquet(testPath + "/occurrence")
+    occurrenceRead4.select("taxon").as[String].take(3) should be(Array("Animalia|Mammalia"))
+    occurrenceRead4.count() should be(1)
+
 
   }
 
