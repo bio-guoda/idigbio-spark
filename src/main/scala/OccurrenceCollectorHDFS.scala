@@ -28,7 +28,7 @@ case class SourceMonitoredOccurrenceHDFS(source: String, id: String)
 case class MonitorsOfOccurrenceHDFS(uuid: String, source: String, u0: String, u1: String, u2: String, monitorUUID: String)
 
 case class OccurrenceSummaryHDFS(uuid: String, u0: String, u1: String, u2: String,
-                                 count: Long,
+                                 itemCount: Long,
                                  status: String = "ready",
                                  taxonSelector: String = "",
                                  wktString: String = "",
@@ -152,7 +152,7 @@ class OccurrenceCollectorHDFS extends OccurrenceCollector {
           taxonSelector = selector.taxonSelector,
           wktString = selector.wktString,
           traitSelector = selector.traitSelector,
-          count = count
+          itemCount = count
         )
       }
       .coalesce(10)
