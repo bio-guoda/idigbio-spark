@@ -3,6 +3,7 @@ import java.util.Date
 import org.apache.spark.SparkContext
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.sql.{Dataset, SaveMode}
+import org.apache.spark.storage.StorageLevel
 import org.effechecka.selector.{OccurrenceSelector, UuidUtils}
 import org.joda.time.format.ISODateTimeFormat
 
@@ -29,6 +30,9 @@ case class MonitorsOfOccurrenceHDFS(uuid: String, source: String, u0: String, u1
 case class OccurrenceSummaryHDFS(uuid: String, u0: String, u1: String, u2: String,
                                  count: Long,
                                  status: String = "ready",
+                                 taxonSelector: String = "",
+                                 wktString: String = "",
+                                 traitSelector: String = "",
                                  lastModified: Long = new Date().getTime
                                 )
 
@@ -36,6 +40,7 @@ case class OccurrenceSummaryHDFS(uuid: String, u0: String, u1: String, u2: Strin
 class OccurrenceCollectorHDFS extends OccurrenceCollector {
 
   def write(config: ChecklistConf, sc: SparkContext): Unit = {
+    val sqlContext = SQLContextSingleton.getInstance(sc)
     val (saveMode, occurrenceSelectors) = if (config.applyAllSelectors) {
       (SaveMode.Overwrite, Seq())
     } else {
@@ -43,9 +48,8 @@ class OccurrenceCollectorHDFS extends OccurrenceCollector {
     }
 
     val selectors: Broadcast[Seq[OccurrenceSelector]] = sc.broadcast(occurrenceSelectors)
-    val sqlContext = SQLContextSingleton.getInstance(sc)
-    val occurrenceCollection: Dataset[SelectedOccurrence] = occurrenceCollectionsFor(config, sqlContext, selectors)
-    writeToParquet(occurrenceCollection, config.outputPath, saveMode)
+    val occurrenceCollection = occurrenceCollectionsFor(config, sqlContext, selectors)
+    writeToParquet(occurrenceCollection.persist(StorageLevel.MEMORY_AND_DISK), config.outputPath, saveMode)
   }
 
   def writeToParquet(occurrences: Dataset[SelectedOccurrence], outputPath: String, saveMode: SaveMode = SaveMode.Append) = {
@@ -117,10 +121,10 @@ class OccurrenceCollectorHDFS extends OccurrenceCollector {
       .map { occSel =>
         val uuid = UuidUtils.uuidFor(occSel.selector)
         val uuidString = uuid.toString
-        (uuidString, 1)
+        (uuidString, (occSel.selector, 1))
       }
-      .rdd.reduceByKey(_ + _).toDS()
-      .map { case (uuid, count) =>
+      .rdd.reduceByKey((agg, value) => (agg._1, agg._2 + value._2)).toDS()
+      .map { case (uuid, (selector, count)) =>
         val f0 = uuid.substring(0, 2)
         val f1 = uuid.substring(2, 4)
         val f2 = uuid.substring(4, 6)
@@ -129,6 +133,9 @@ class OccurrenceCollectorHDFS extends OccurrenceCollector {
           u0 = f0,
           u1 = f1,
           u2 = f2,
+          taxonSelector = selector.taxonSelector,
+          wktString = selector.wktString,
+          traitSelector = selector.traitSelector,
           count = count
         )
       }

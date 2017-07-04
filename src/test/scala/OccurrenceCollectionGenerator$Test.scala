@@ -9,6 +9,7 @@ class OccurrenceCollectionGenerator$Test extends FlatSpec with Matchers {
         config.occurrenceFiles.size should be(3)
         config.occurrenceFiles should contain("archive1")
         config.traitFiles should contain("traitArchive1")
+        config.firstSeenOnly shouldBe true
         config.outputPath shouldNot be(null)
         config.outputFormat should be("some output format")
         config.geoSpatialSelector should be("some wkt string")

@@ -454,6 +454,9 @@ class SparkJobs$Test extends TestSparkContext with DwCSparkHandler {
     occurrenceSummaryRead.count() should be(1)
     occurrenceSummaryRead.select("uuid").as[String].take(1) should be(Array("55e4b0a0-bcd9-566f-99bc-357439011d85"))
     occurrenceSummaryRead.select("count").as[Long].take(1) should be(Array(1L))
+    occurrenceSummaryRead.select("taxonSelector").as[String].take(1) should be(Array("Animalia|Insecta"))
+    occurrenceSummaryRead.select("wktString").as[String].take(1) should be(Array("ENVELOPE(-150,-50,40,10)"))
+    occurrenceSummaryRead.select("traitSelector").as[String].take(1) should be(Array(""))
 
     val monitorOfOcurrenceRead = sqlContext.read.parquet(testPath + "/monitor-of-occurrence")
     monitorOfOcurrenceRead.select("uuid").as[String].take(1) should be(Array("baa722b5-7b86-5d11-82f8-e516c86156c9"))
