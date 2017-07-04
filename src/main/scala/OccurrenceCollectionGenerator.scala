@@ -84,6 +84,9 @@ object OccurrenceCollectionGenerator {
       opt[String]('f', "output-format") optional() valueName "<output format>" action { (x, c) =>
         c.copy(outputFormat = x)
       } text "output format"
+      opt[String]('o', "output-path") optional() valueName "<output path>" action { (x, c) =>
+        c.copy(outputPath = x)
+      } text "output path"
       opt[String]('c', "<occurrence url>") required() action { (x, c) =>
         c.copy(occurrenceFiles = splitAndClean(x))
       } text "list of occurrence archive urls"
