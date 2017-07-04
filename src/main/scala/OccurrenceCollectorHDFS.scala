@@ -39,10 +39,15 @@ case class OccurrenceSummaryHDFS(uuid: String, u0: String, u1: String, u2: Strin
 
 class OccurrenceCollectorHDFS extends OccurrenceCollector {
 
+  val occurrenceSummaryPath = "/occurrence-summary"
+
   def write(config: ChecklistConf, sc: SparkContext): Unit = {
     val sqlContext = SQLContextSingleton.getInstance(sc)
     val (saveMode, occurrenceSelectors) = if (config.applyAllSelectors) {
-      (SaveMode.Overwrite, Seq())
+      val occurrenceSelectors = sqlContext.read.parquet(s"${config.outputPath}/$occurrenceSummaryPath")
+        .as[OccurrenceSummaryHDFS]
+        .collectAsList()
+      (SaveMode.Overwrite, occurrenceSelectors)
     } else {
       (SaveMode.Append, Seq(OccurrenceSelectors.toOccurrenceSelector(config)))
     }
@@ -82,7 +87,9 @@ class OccurrenceCollectorHDFS extends OccurrenceCollector {
         uuid = uuidString)
     }
 
-    occurrencesMapped.write
+    occurrencesMapped
+      .coalesce(10)
+      .write
       .mode(saveMode)
       .partitionBy("u0", "u1", "u2", "uuid", "y", "m", "d")
       .parquet(s"$outputPath/occurrence")
@@ -103,6 +110,7 @@ class OccurrenceCollectorHDFS extends OccurrenceCollector {
           monitorUUID = occ.uuid
         )
       }
+      .coalesce(1)
       .write
       .mode(saveMode)
       .partitionBy("u0", "u1", "u2", "uuid")
@@ -112,6 +120,7 @@ class OccurrenceCollectorHDFS extends OccurrenceCollector {
       .map { occ =>
         SourceMonitoredOccurrenceHDFS(occ.source, occ.id)
       }
+      .coalesce(10)
       .write
       .mode(saveMode)
       .partitionBy("source")
@@ -139,9 +148,10 @@ class OccurrenceCollectorHDFS extends OccurrenceCollector {
           count = count
         )
       }
+      .coalesce(1)
       .write
       .mode(saveMode)
       .partitionBy("u0", "u1", "u2", "uuid")
-      .parquet(s"$outputPath/occurrence-summary")
+      .parquet(s"$outputPath/$occurrenceSummaryPath")
   }
 }
