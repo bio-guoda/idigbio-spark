@@ -2,7 +2,7 @@ import java.util.Date
 
 import org.apache.spark.SparkContext
 import org.apache.spark.broadcast.Broadcast
-import org.apache.spark.sql.{Dataset, SaveMode}
+import org.apache.spark.sql.{Dataset, SQLContext, SaveMode}
 import org.apache.spark.storage.StorageLevel
 import org.effechecka.selector.{OccurrenceSelector, UuidUtils}
 import org.joda.time.format.ISODateTimeFormat
@@ -44,10 +44,7 @@ class OccurrenceCollectorHDFS extends OccurrenceCollector {
   def write(config: ChecklistConf, sc: SparkContext): Unit = {
     val sqlContext = SQLContextSingleton.getInstance(sc)
     val (saveMode, occurrenceSelectors) = if (config.applyAllSelectors) {
-      val occurrenceSelectors = sqlContext.read.parquet(s"${config.outputPath}/$occurrenceSummaryPath")
-        .as[OccurrenceSummaryHDFS]
-        .collectAsList()
-      (SaveMode.Overwrite, occurrenceSelectors)
+      (SaveMode.Overwrite, allSelectorsFor(sqlContext, config.outputPath))
     } else {
       (SaveMode.Append, Seq(OccurrenceSelectors.toOccurrenceSelector(config)))
     }
@@ -55,6 +52,16 @@ class OccurrenceCollectorHDFS extends OccurrenceCollector {
     val selectors: Broadcast[Seq[OccurrenceSelector]] = sc.broadcast(occurrenceSelectors)
     val occurrenceCollection = occurrenceCollectionsFor(config, sqlContext, selectors)
     writeToParquet(occurrenceCollection.persist(StorageLevel.MEMORY_AND_DISK), config.outputPath, saveMode)
+  }
+
+  def allSelectorsFor(sqlContext: SQLContext, outputPath: String) = {
+    import sqlContext.implicits._
+    sqlContext.read.parquet(s"$outputPath/$occurrenceSummaryPath")
+      .as[OccurrenceSummaryHDFS]
+      .rdd.map(summary => (summary.uuid, summary))
+      .reduceByKey((agg, summary) => if (agg.lastModified < summary.lastModified) summary else agg)
+      .map { case (_, summary) => OccurrenceSelector(summary.taxonSelector, summary.wktString, summary.traitSelector) }
+      .collect.toSeq
   }
 
   def writeToParquet(occurrences: Dataset[SelectedOccurrence], outputPath: String, saveMode: SaveMode = SaveMode.Append) = {
@@ -148,9 +155,9 @@ class OccurrenceCollectorHDFS extends OccurrenceCollector {
           count = count
         )
       }
-      .coalesce(1)
+      .coalesce(10)
       .write
-      .mode(saveMode)
+      .mode(SaveMode.Append)
       .partitionBy("u0", "u1", "u2", "uuid")
       .parquet(s"$outputPath/$occurrenceSummaryPath")
   }
