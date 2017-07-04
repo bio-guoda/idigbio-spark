@@ -3,7 +3,6 @@ import java.util.Date
 import org.apache.spark.SparkContext
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.sql.{Dataset, SQLContext, SaveMode}
-import org.apache.spark.storage.StorageLevel
 import org.effechecka.selector.{OccurrenceSelector, UuidUtils}
 import org.joda.time.format.ISODateTimeFormat
 
@@ -46,7 +45,8 @@ class OccurrenceCollectorHDFS extends OccurrenceCollector {
     val (saveMode, occurrenceSelectors) = if (config.applyAllSelectors) {
       (SaveMode.Overwrite, allSelectorsFor(sqlContext, config.outputPath))
     } else {
-      (SaveMode.Append, Seq(OccurrenceSelectors.toOccurrenceSelector(config)))
+      (SaveMode.Overwrite, Seq(OccurrenceSelectors.toOccurrenceSelector(config)))
+      //(SaveMode.Append, Seq(OccurrenceSelectors.toOccurrenceSelector(config)))
     }
 
     val selectors: Broadcast[Seq[OccurrenceSelector]] = sc.broadcast(occurrenceSelectors)

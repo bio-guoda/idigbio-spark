@@ -36,6 +36,7 @@ object ChecklistGenerator {
     val conf = new SparkConf()
       .setAppName("occ2checklist")
     val sc = new SparkContext(conf)
+
     try {
       val sqlContext = SQLContextSingleton.getInstance(sc)
       val occurrences: DataFrame = ParquetUtil.readParquet(path = occurrenceFile, sqlContext = sqlContext)
