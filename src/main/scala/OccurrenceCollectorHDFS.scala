@@ -24,7 +24,7 @@ case class OccurrenceHDFS(lat: String,
 
 case class SourceMonitoredOccurrenceHDFS(source: String, id: String)
 
-case class MonitorsOfOccurrenceHDFS(uuid: String, source: String, u0: String, u1: String, u2: String, monitorUUID: String)
+case class MonitorOfOccurrenceHDFS(uuid: String, source: String, u0: String, u1: String, u2: String, monitorUUID: String)
 
 case class OccurrenceSummaryHDFS(uuid: String, u0: String, u1: String, u2: String,
                                  itemCount: Long,
@@ -45,8 +45,7 @@ class OccurrenceCollectorHDFS extends OccurrenceCollector {
     val (saveMode, occurrenceSelectors) = if (config.applyAllSelectors) {
       (SaveMode.Overwrite, allSelectorsFor(sqlContext, config.outputPath))
     } else {
-      (SaveMode.Overwrite, Seq(OccurrenceSelectors.toOccurrenceSelector(config)))
-      //(SaveMode.Append, Seq(OccurrenceSelectors.toOccurrenceSelector(config)))
+      (SaveMode.Append, Seq(OccurrenceSelectors.toOccurrenceSelector(config)))
     }
 
     val selectors: Broadcast[Seq[OccurrenceSelector]] = sc.broadcast(occurrenceSelectors)
@@ -54,7 +53,7 @@ class OccurrenceCollectorHDFS extends OccurrenceCollector {
     writeToParquet(occurrenceCollection, config.outputPath, saveMode)
   }
 
-  def allSelectorsFor(sqlContext: SQLContext, outputPath: String) = {
+  def allSelectorsFor(sqlContext: SQLContext, outputPath: String): Seq[OccurrenceSelector] = {
     import sqlContext.implicits._
     sqlContext.read.parquet(s"$outputPath/$occurrenceSummaryPath")
       .as[OccurrenceSummaryHDFS]
@@ -64,7 +63,7 @@ class OccurrenceCollectorHDFS extends OccurrenceCollector {
       .collect.toSeq
   }
 
-  def writeToParquet(occurrences: Dataset[SelectedOccurrence], outputPath: String, saveMode: SaveMode = SaveMode.Append) = {
+  def writeToParquet(occurrences: Dataset[SelectedOccurrence], outputPath: String, saveMode: SaveMode = SaveMode.Append, enableMonitorForOccurrenceLookup: Boolean = false) = {
     import occurrences.sqlContext.implicits._
 
     val occurrencesMapped = occurrences.map { selOcc =>
@@ -101,27 +100,29 @@ class OccurrenceCollectorHDFS extends OccurrenceCollector {
       .partitionBy("u0", "u1", "u2", "uuid", "y", "m", "d")
       .parquet(s"$outputPath/occurrence")
 
-    occurrencesMapped
-      .map { occ =>
-        val uuid = UuidUtils.generator.generate(occ.id)
-        val uuidString = uuid.toString
-        val f0 = uuidString.substring(0, 2)
-        val f1 = uuidString.substring(2, 4)
-        val f2 = uuidString.substring(4, 6)
-        MonitorsOfOccurrenceHDFS(
-          uuid = uuidString,
-          source = occ.source,
-          u0 = f0,
-          u1 = f1,
-          u2 = f2,
-          monitorUUID = occ.uuid
-        )
-      }
-      .coalesce(10)
-      .write
-      .mode(saveMode)
-      .partitionBy("u0", "u1", "u2", "uuid")
-      .parquet(s"$outputPath/monitor-of-occurrence")
+    if (enableMonitorForOccurrenceLookup) {
+      occurrencesMapped
+        .map { occ =>
+          val uuid = UuidUtils.generator.generate(occ.id)
+          val uuidString = uuid.toString
+          val f0 = uuidString.substring(0, 2)
+          val f1 = uuidString.substring(2, 4)
+          val f2 = uuidString.substring(4, 6)
+          MonitorOfOccurrenceHDFS(
+            uuid = uuidString,
+            source = occ.source,
+            u0 = f0,
+            u1 = f1,
+            u2 = f2,
+            monitorUUID = occ.uuid
+          )
+        }
+        .coalesce(10)
+        .write
+        .mode(saveMode)
+        .partitionBy("u0", "u1", "u2", "uuid")
+        .parquet(s"$outputPath/monitor-of-occurrence")
+    }
 
     occurrences
       .map { occSelected =>
