@@ -465,6 +465,7 @@ class SparkJobs$Test extends TestSparkContext with DwCSparkHandler {
 
     val sourceOfMonitoredOccurrences = sqlContext.read.parquet(testPath + "/source-of-monitored-occurrence")
     sourceOfMonitoredOccurrences.select("source").as[String].take(1) should be(Array("some data source"))
+    sourceOfMonitoredOccurrences.select("uuid").as[String].take(1) should be(Array("55e4b0a0-bcd9-566f-99bc-357439011d85"))
 
     new OccurrenceCollectorHDFS().writeToParquet(occurrences2.toDS(), testPath, SaveMode.Append, true)
     val occurrenceRead2 = sqlContext.read.parquet(testPath + "/occurrence")

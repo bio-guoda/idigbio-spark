@@ -22,7 +22,7 @@ case class OccurrenceHDFS(lat: String,
                           m: String,
                           d: String)
 
-case class SourceMonitoredOccurrenceHDFS(source: String, id: String)
+case class SourceMonitoredOccurrenceHDFS(source: String, id: String, uuid: Option[String] = None)
 
 case class MonitorOfOccurrenceHDFS(uuid: String, source: String, u0: String, u1: String, u2: String, monitorUUID: String)
 
@@ -126,7 +126,7 @@ class OccurrenceCollectorHDFS extends OccurrenceCollector {
 
     occurrences
       .map { occSelected =>
-        SourceMonitoredOccurrenceHDFS(occSelected.occ.source, occSelected.occ.id)
+        SourceMonitoredOccurrenceHDFS(occSelected.occ.source, occSelected.occ.id, occSelected.selector.withUUID.uuid)
       }
       .coalesce(10)
       .write
