@@ -14,7 +14,6 @@ libraryDependencies ++= Seq(
   "org.globalnames" %% "gnparser" % "0.3.3",
   "org.effechecka" %% "effechecka-selector" % "0.0.2-SNAPSHOT",
   "org.apache.spark" %% "spark-sql" % sparkV % "provided",
-  "com.datastax.spark" %% "spark-cassandra-connector" % "2.0.0-M3",
   "org.scalatest" %% "scalatest" % "3.0.1" % "test",
   "com.holdenkarau" %% "spark-testing-base" % s"2.1.0_0.6.0" % "test"
 )

@@ -1,17 +1,12 @@
-import java.util.Date
-
 import au.com.bytecode.opencsv.CSVParser
+import org.apache.commons.logging.LogFactory
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.{DataFrame, SQLContext, SaveMode}
 import org.apache.spark.{SparkConf, SparkContext}
-import com.datastax.spark.connector.cql.CassandraConnector
-import com.datastax.spark.connector._
-import org.apache.commons.logging.LogFactory
 import org.effechecka.selector.UuidUtils
 import org.globalnames.parser.ScientificNameParser.{instance => snp}
 import org.joda.time.DateTime
-import org.json4s._
 
 object SQLContextSingleton {
   @transient private var instance: SQLContext = _
@@ -49,20 +44,6 @@ object ChecklistGenerator {
         .sortBy(_._2, ascending = false)
 
       config.outputFormat.trim match {
-        case "cassandra" => {
-          CassandraConnector(sc.getConf).withSessionDo { session =>
-            session.execute(CassandraUtil.checklistKeySpaceCreate)
-            session.execute(CassandraUtil.checklistRegistryTableCreate)
-            session.execute(CassandraUtil.checklistTableCreate)
-          }
-          checklist.cache().map(item => (selector.taxonSelector, selector.wktString, selector.traitSelector, item._1, item._2))
-            .saveToCassandra("effechecka", "checklist", CassandraUtil.checklistColumns)
-
-          sc.parallelize(Seq((selector.taxonSelector, selector.wktString, selector.traitSelector, "ready", checklist.count())))
-            .saveToCassandra("effechecka", "checklist_registry", CassandraUtil.checklistRegistryColumns)
-        }
-
-
         case "hdfs" => {
           import sqlContext.implicits._
 

@@ -1,16 +1,10 @@
-import java.io.File
-import java.net.{URI, URL}
-import java.nio.file.attribute.UserPrincipal
-import java.nio.file.{Path, Files, Paths}
+import java.net.URL
 
-import org.apache.spark.{SparkConf, SparkContext}
+import DwC.Meta
 import org.apache.spark.sql._
 import org.apache.spark.sql.types._
-import com.datastax.spark.connector._
-import scopt._
-import DwC.Meta
+import org.apache.spark.{SparkConf, SparkContext}
 
-import scala.collection.JavaConversions._
 
 trait DwCHandler {
   def toDF2(sqlCtx: SQLContext, metas: Seq[String]): Seq[(String, DataFrame)] = {
@@ -77,8 +71,6 @@ object DarwinCoreToParquet extends DwCSparkHandler {
           for ((sourceLocation, df) <- metaToDF(sqlCtx = sqlContext, metas = metas)) {
             df.write.format("parquet").save(parquetPathString(sourceLocation))
           }
-
-          setParquetOwnerToSourceOwner(metas)
         } finally {
           SparkUtil.stopAndExit(sc)
         }
@@ -87,32 +79,6 @@ object DarwinCoreToParquet extends DwCSparkHandler {
       // arguments are bad, error message will have been displayed
     }
 
-  }
-
-  def setParquetOwnerToSourceOwner(metas: Seq[Meta]): Any = {
-    val existingSourceParquetPathPairs = metas
-      .flatMap(_.fileURIs)
-      .map((fileLocation: String) => {
-        val sourceURI = new URI(fileLocation)
-        val parquetURI = new URI(parquetPathString(fileLocation))
-        val (source, parquet) = (Paths.get(sourceURI), Paths.get(parquetURI))
-        println("attempting to transfer ownership of [" + parquet + "] to owner of [" + source + "]")
-        (source, parquet)
-      })
-      .filter { case (source: Path, parquet: Path) => Files.exists(source) && Files.exists(parquet) }
-
-    existingSourceParquetPathPairs.foreach {
-      case (sourcePath, parquetPath) => {
-        transferToOwnerOf(parquetPath, sourcePath)
-        parquetPath.toFile.listFiles().foreach((file: File) => transferToOwnerOf(file.toPath, sourcePath))
-      }
-    }
-  }
-
-  def transferToOwnerOf(parquetPath: Path, sourcePath: Path): Path = {
-    val owner: UserPrincipal = Files.getOwner(sourcePath)
-    println(s"attempting to transfer ownership for [$parquetPath] to owner [${owner.getName}] of [$sourcePath]")
-    Files.setOwner(parquetPath, owner)
   }
 
   def config(args: Array[String]): Option[Config] = {

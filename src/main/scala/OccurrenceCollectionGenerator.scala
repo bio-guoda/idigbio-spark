@@ -26,18 +26,11 @@ object OccurrenceCollectionGenerator {
     val conf = new SparkConf()
       .set("spark.debug.maxToStringFields", "250") // see https://issues.apache.org/jira/browse/SPARK-15794
       .set("spark.sql.parquet.mergeSchema", "false")
-      .set("spark.cassandra.output.batch.grouping.key", "None")
-      .set("spark.cassandra.output.batch.grouping.key", "None")
-      .set("spark.cassandra.output.batch.size.rows", "10")
-      .set("spark.cassandra.output.batch.size.bytes", "2048")
-      .set("spark.cassandra.output.throughput_mb_per_sec", "5") // see https://www.instaclustr.com/blog/2016/03/31/cassandra-connector-for-spark-5-tips-for-success/
       .setAppName("occ2collection")
 
     val sc = SparkUtil.start(conf)
     try {
       val occurrenceCollector = config.outputFormat.trim match {
-        case "cassandra" =>
-          new OccurrenceCollectorCassandra()
         case "hdfs" =>
           new OccurrenceCollectorHDFS()
 

@@ -3,8 +3,6 @@ scala:
 - 2.11.8
 sudo: false
 after_success: "sbt assembly"
-services:
-- cassandra
 cache:
   directories:
   - "$HOME/.ivy2"

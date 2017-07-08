@@ -2,8 +2,6 @@ import java.io.{File, IOException}
 
 import OccurrenceCollectionBuilder._
 import au.com.bytecode.opencsv.CSVParser
-import com.datastax.spark.connector._
-import com.datastax.spark.connector.cql.CassandraConnector
 import com.holdenkarau.spark.testing.SharedSparkContext
 import org.apache.commons.io.FileUtils
 import org.apache.spark.SparkConf
@@ -20,7 +18,6 @@ trait TestSparkContext extends FlatSpec with Matchers with BeforeAndAfter with S
     setMaster("local[*]").
     setAppName("test").
     set("spark.debug.maxToStringFields", "250"). // see https://issues.apache.org/jira/browse/SPARK-15794
-    set("spark.cassandra.connection.host", "localhost").
     set("spark.ui.enabled", "false").
     set("spark.app.id", appID)
 
@@ -182,16 +179,6 @@ class SparkJobs$Test extends TestSparkContext with DwCSparkHandler {
   }
 
 
-  "concatenating rows" should "be saved to cassandra" in {
-    prepareCassandra()
-    val otherLines = Seq(("Mammalia|Insecta", "LINE(1 2 3 4)", "bodyMass greaterThan 19 g", "checklist item", 1)
-      , ("Mammalia|Insecta", "LINE(1 2 3 4)", "bodyMass greaterThan 19 g", "other checklist item", 1))
-
-    sc.parallelize(otherLines).saveToCassandra("effechecka", "checklist", CassandraUtil.checklistColumns)
-
-    sc.parallelize(Seq(("bla|bla", "something", "trait|anotherTrait", "running", 123L))).saveToCassandra("effechecka", "checklist_registry", CassandraUtil.checklistRegistryColumns)
-  }
-
   "broadcast a monitor with ttl" should "serialize" in {
     val occurrenceSelectors = Seq(OccurrenceSelector("some taxa", "some wkt", "some trait", ttlSeconds = Some(123)))
     val broadcasted = sc.broadcast(occurrenceSelectors)
@@ -202,78 +189,6 @@ class SparkJobs$Test extends TestSparkContext with DwCSparkHandler {
     val occurrenceSelectors = Seq(OccurrenceSelector("some taxa", "some wkt", "some trait", ttlSeconds = None))
     val broadcasted = sc.broadcast(occurrenceSelectors)
     occurrenceSelectors should be(broadcasted.value)
-  }
-
-  "occurrence selectors" should "be loaded from cassandra" in {
-    prepareCassandra()
-    val someSelectors = Seq(("Mammalia|Insecta", "LINE(1 2 3 4)", "bodyMass greaterThan 19 g", "status", 1)
-      , ("Mammalia|Insecta", "LINE(1 2 3 4)", "bodyMass greaterThan 20 g", "other status", 1))
-
-    val selectorsBefore: Seq[OccurrenceSelector] = new OccurrenceCollectorCassandra().occurrenceSelectorsFor(ChecklistConf(applyAllSelectors = true), sc)
-    selectorsBefore.length should be(0)
-
-    CassandraConnector(sc.getConf).withSessionDo { session =>
-      session.execute(s"INSERT INTO effechecka.monitors (taxonselector, wktstring, traitselector, accessed_at) VALUES " +
-        s"('Mammalia|Insecta','LINE(1 2 3 4)','bodyMass greaterThan 19 g', dateOf(NOW()))")
-      session.execute(s"INSERT INTO effechecka.monitors (taxonselector, wktstring, traitselector, accessed_at) VALUES " +
-        s"('Mammalia|Insecta','LINE(1 2 3 4)','bodyMass greaterThan 20 g', dateOf(NOW())) USING TTL 100")
-    }
-
-    val selectorsAfter: Seq[OccurrenceSelector] = new OccurrenceCollectorCassandra().occurrenceSelectorsFor(ChecklistConf(applyAllSelectors = true), sc)
-    selectorsAfter should contain(OccurrenceSelector("Mammalia|Insecta", "LINE(1 2 3 4)", "bodyMass greaterThan 19 g", ttlSeconds = Some(15552000)))
-    selectorsAfter should not contain (OccurrenceSelector("Mammalia|Insecta", "LINE(1 2 3 4)", "bodyMass greaterThan 20 g"))
-
-    val secondWithTtl = selectorsAfter.filter(_.ttlSeconds.isDefined).tail.head
-    secondWithTtl.traitSelector should be("bodyMass greaterThan 20 g")
-    secondWithTtl.ttlSeconds.value should be < 101
-  }
-
-  "occurrence selectors" should "be serializable" in {
-    prepareCassandra()
-
-    CassandraConnector(sc.getConf).withSessionDo { session =>
-      session.execute(s"INSERT INTO effechecka.monitors (taxonselector, wktstring, traitselector, accessed_at) VALUES " +
-        s"('Mammalia|Insecta','LINE(1 2 3 4)','bodyMass greaterThan 19 g', dateOf(NOW()))")
-      session.execute(s"INSERT INTO effechecka.monitors (taxonselector, wktstring, traitselector, accessed_at) VALUES " +
-        s"('Mammalia|Insecta','LINE(1 2 3 4)','bodyMass greaterThan 20 g', dateOf(NOW())) USING TTL 100")
-    }
-
-    val selectorsAfter: Seq[OccurrenceSelector] = new OccurrenceCollectorCassandra().occurrenceSelectorsFor(ChecklistConf(applyAllSelectors = true), sc)
-    selectorsAfter should be(sc.broadcast(selectorsAfter).value)
-  }
-
-  def prepareCassandra() = {
-    try {
-      println("preparing cassandra...")
-      OccurrenceCollectorCassandraUtil.initCassandra(new SQLContext(sc))
-      truncateTables()
-    } catch {
-      case e: IOException => {
-        fail("failed to connect to cassandra. do you have it running?", e)
-      }
-    }
-  }
-
-  def truncateTables(): Unit = {
-    CassandraConnector(sc.getConf).withSessionDo { session =>
-      session.execute(s"TRUNCATE effechecka.checklist")
-      session.execute(s"TRUNCATE effechecka.monitors")
-      session.execute(s"TRUNCATE effechecka.occurrence_collection_registry")
-      session.execute(s"TRUNCATE effechecka.occurrence_collection")
-      session.execute(s"TRUNCATE effechecka.occurrence_search")
-      session.execute(s"TRUNCATE effechecka.occurrence_first_added_search")
-    }
-  }
-
-  def insertSomeSearchResults() = {
-    prepareCassandra()
-
-    val otherLines = Seq(
-      ("some taxonselector", "some wktstring", "some traitselector", "Animalia|Aves", "11.4", "12.2", "2013-05-03", 123L, 124L, 635829854630400000L, "http://archive2")
-      , ("some taxonselector", "some wktstring", "some traitselector", "Animalia|Aves", "11.4", "12.2", "2013-05-03", 123L, 125L, 635829854630400000L, "http://archive2")
-      , ("some other taxonselector", "some wktstring", "some traitselector", "Animalia|Aves", "11.4", "12.2", "2013-05-03", 123L, 125L, 635829854630400000L, "http://archive2")
-    )
-    sc.parallelize(otherLines).saveToCassandra("effechecka", "occurrence_collection", CassandraUtil.occurrenceCollectionColumns)
   }
 
   def plantaeSelector = Seq(OccurrenceSelector("Plantae", "ENVELOPE(4,5,52,50)", ""))
@@ -379,46 +294,6 @@ class SparkJobs$Test extends TestSparkContext with DwCSparkHandler {
     })
   }
 
-  "occurrence collection" should "be saved to cassandra" in {
-    val sqlContext = new SQLContext(sc)
-    import sqlContext.implicits._
-
-    prepareCassandra()
-
-    val occurrences = Seq(OccurrenceCassandra(lat = "11.4", lng = "12.2",
-      taxon = "Animalia|Aves", added = 123L, start = 44L, end = 55L,
-      id = "some id", source = "some data source",
-      taxonselector = "some taxonselector", wktstring = "some wktstring", traitselector = "some traitselector"))
-
-    new OccurrenceCollectorCassandra().saveCollectionToCassandra(sqlContext,
-      occurrenceCollection = sqlContext.createDataset(occurrences))
-
-    val df = sqlContext
-      .read
-      .format("org.apache.spark.sql.cassandra")
-      .options(Map("table" -> "occurrence_collection", "keyspace" -> "effechecka"))
-      .load()
-
-    df.count() should be(1)
-
-    val searches = sqlContext
-      .read
-      .format("org.apache.spark.sql.cassandra")
-      .options(Map("table" -> "occurrence_search", "keyspace" -> "effechecka"))
-      .load()
-
-    searches.first should be(Row("some data source", "some id", "some taxonselector", "some wktstring", "some traitselector"))
-
-    val searchesFirstAdded = sqlContext
-      .read
-      .format("org.apache.spark.sql.cassandra")
-      .options(Map("table" -> "occurrence_first_added_search", "keyspace" -> "effechecka"))
-      .load()
-
-    searchesFirstAdded.first.getAs[String]("source") should be("some data source")
-    searchesFirstAdded.first.getAs[String]("id") should be("some id")
-
-  }
 
   "occurrence collection" should "be saved to hdfs" in {
     val testPath = "target/some/hdfs"
