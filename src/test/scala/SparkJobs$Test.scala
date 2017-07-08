@@ -327,14 +327,12 @@ class SparkJobs$Test extends TestSparkContext with DwCSparkHandler {
     occurrenceSummaryRead.select("wktString").as[String].take(1) should be(Array("ENVELOPE(-150,-50,40,10)"))
     occurrenceSummaryRead.select("traitSelector").as[String].take(1) should be(Array(""))
 
-    val monitorOfOcurrenceRead = sqlContext.read.parquet(testPath + "/monitor-of-occurrence")
-    monitorOfOcurrenceRead.select("uuid").as[String].take(1) should be(Array("baa722b5-7b86-5d11-82f8-e516c86156c9"))
-    monitorOfOcurrenceRead.select("monitorUUID").as[String].take(1) should be(Array("55e4b0a0-bcd9-566f-99bc-357439011d85"))
-    monitorOfOcurrenceRead.select("source").as[String].take(1) should be(Array("some data source"))
-
     val sourceOfMonitoredOccurrences = sqlContext.read.parquet(testPath + "/source-of-monitored-occurrence")
     sourceOfMonitoredOccurrences.select("source").as[String].take(1) should be(Array("some data source"))
     sourceOfMonitoredOccurrences.select("uuid").as[String].take(1) should be(Array("55e4b0a0-bcd9-566f-99bc-357439011d85"))
+    sourceOfMonitoredOccurrences.select("y").as[String].take(1) should be(Array("2017"))
+    sourceOfMonitoredOccurrences.select("m").as[String].take(1) should be(Array("7"))
+    sourceOfMonitoredOccurrences.select("d").as[String].take(1) should be(Array("3"))
 
     new OccurrenceCollectorHDFS().writeToParquet(occurrences2.toDS(), testPath, SaveMode.Append)
     val occurrenceRead2 = sqlContext.read.parquet(testPath + "/occurrence")
