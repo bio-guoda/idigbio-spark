@@ -210,7 +210,6 @@ class SparkJobs$Test extends TestSparkContext with DwCSparkHandler {
     val anotherCollection = selectOccurrences(sqlContext, gbifOcc, dactylisSelector)
 
     anotherCollection.count() should be(1)
-
   }
 
   "apply first added aggregate" should "select a few occurrences" in {
@@ -238,7 +237,6 @@ class SparkJobs$Test extends TestSparkContext with DwCSparkHandler {
 
     val anotherCollection = selectOccurrences(sqlContext, gbifOcc, dactylisSelector)
     anotherCollection.count() should be(2)
-
   }
 
   "apply occurrence filter to idigbio sample" should "select a few occurrences" in {
@@ -256,7 +254,6 @@ class SparkJobs$Test extends TestSparkContext with DwCSparkHandler {
     val anotherCollection = buildOccurrenceCollection(sc, toOccurrenceDS(sqlContext, idigbio), otherSelectors)
 
     anotherCollection.count() should be(1)
-
   }
 
 
@@ -272,9 +269,7 @@ class SparkJobs$Test extends TestSparkContext with DwCSparkHandler {
     occurrenceDFs.foreach {
       _.columns should contain("http://rs.tdwg.org/dwc/terms/scientificName")
     }
-
   }
-
 
   def readDwC: Seq[(String, DataFrame)] = {
     readDwCNoSource.map {
@@ -294,7 +289,6 @@ class SparkJobs$Test extends TestSparkContext with DwCSparkHandler {
     })
   }
 
-
   "occurrence collection" should "be saved to hdfs" in {
     val testPath = "target/some/hdfs"
     FileUtils.deleteDirectory(new File(testPath))
@@ -312,7 +306,7 @@ class SparkJobs$Test extends TestSparkContext with DwCSparkHandler {
       OccurrenceSelector("Animalia|Aves", "ENVELOPE(-150,-50,40,10)", "")))
 
     scala.reflect.io.File(testPath).exists should be(false)
-    new OccurrenceCollectorHDFS().writeToParquet(occurrences = occurrences.toDS(), outputPath = testPath, saveMode = SaveMode.Append, enableMonitorForOccurrenceLookup = true)
+    new OccurrenceCollectorHDFS().writeToParquet(occurrences = occurrences.toDS(), outputPath = testPath, saveMode = SaveMode.Append)
     scala.reflect.io.File(testPath).exists should be(true)
 
     val occurrenceRead = sqlContext.read.parquet(testPath + "/occurrence")
@@ -342,12 +336,12 @@ class SparkJobs$Test extends TestSparkContext with DwCSparkHandler {
     sourceOfMonitoredOccurrences.select("source").as[String].take(1) should be(Array("some data source"))
     sourceOfMonitoredOccurrences.select("uuid").as[String].take(1) should be(Array("55e4b0a0-bcd9-566f-99bc-357439011d85"))
 
-    new OccurrenceCollectorHDFS().writeToParquet(occurrences2.toDS(), testPath, SaveMode.Append, true)
+    new OccurrenceCollectorHDFS().writeToParquet(occurrences2.toDS(), testPath, SaveMode.Append)
     val occurrenceRead2 = sqlContext.read.parquet(testPath + "/occurrence")
     occurrenceRead2.select("taxon").as[String].take(2) should be(Array("Animalia|Insecta|Apis", "Animalia|Aves"))
     occurrenceRead2.count() should be(2)
 
-    new OccurrenceCollectorHDFS().writeToParquet(occurrences.toDS(), testPath, SaveMode.Append, true)
+    new OccurrenceCollectorHDFS().writeToParquet(occurrences.toDS(), testPath, SaveMode.Append)
     val occurrenceRead3 = sqlContext.read.parquet(testPath + "/occurrence")
     occurrenceRead3.select("taxon").as[String].take(3) should contain only("Animalia|Insecta|Apis", "Animalia|Aves")
     occurrenceRead3.count() should be(3)
@@ -362,7 +356,5 @@ class SparkJobs$Test extends TestSparkContext with DwCSparkHandler {
     val occurrenceRead4 = sqlContext.read.parquet(testPath + "/occurrence")
     occurrenceRead4.select("taxon").as[String].take(3) should be(Array("Animalia|Insecta|Apis"))
     occurrenceRead4.count() should be(1)
-
   }
-
 }

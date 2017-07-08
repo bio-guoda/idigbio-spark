@@ -22,7 +22,7 @@ case class OccurrenceHDFS(lat: String,
                           m: String,
                           d: String)
 
-case class SourceMonitoredOccurrenceHDFS(source: String, id: String, uuid: Option[String] = None)
+case class SourceMonitoredOccurrenceHDFS(source: String, id: String, uuid: String, y: String, m: String, d: String)
 
 case class MonitorOfOccurrenceHDFS(uuid: String, source: String, u0: String, u1: String, u2: String, monitorUUID: String)
 
@@ -63,7 +63,7 @@ class OccurrenceCollectorHDFS extends OccurrenceCollector {
       .collect.toSeq
   }
 
-  def writeToParquet(occurrences: Dataset[SelectedOccurrence], outputPath: String, saveMode: SaveMode = SaveMode.Append, enableMonitorForOccurrenceLookup: Boolean = false) = {
+  def writeToParquet(occurrences: Dataset[SelectedOccurrence], outputPath: String, saveMode: SaveMode = SaveMode.Append) = {
     import occurrences.sqlContext.implicits._
 
     val occurrencesMapped = occurrences.map { selOcc =>
@@ -100,38 +100,20 @@ class OccurrenceCollectorHDFS extends OccurrenceCollector {
       .partitionBy("u0", "u1", "u2", "uuid", "y", "m", "d")
       .parquet(s"$outputPath/occurrence")
 
-    if (enableMonitorForOccurrenceLookup) {
-      occurrencesMapped
-        .map { occ =>
-          val uuid = UuidUtils.generator.generate(occ.id)
-          val uuidString = uuid.toString
-          val f0 = uuidString.substring(0, 2)
-          val f1 = uuidString.substring(2, 4)
-          val f2 = uuidString.substring(4, 6)
-          MonitorOfOccurrenceHDFS(
-            uuid = uuidString,
-            source = occ.source,
-            u0 = f0,
-            u1 = f1,
-            u2 = f2,
-            monitorUUID = occ.uuid
-          )
-        }
-        .coalesce(10)
-        .write
-        .mode(saveMode)
-        .partitionBy("u0", "u1", "u2", "uuid")
-        .parquet(s"$outputPath/monitor-of-occurrence")
-    }
 
-    occurrences
+    occurrencesMapped
       .map { occSelected =>
-        SourceMonitoredOccurrenceHDFS(occSelected.occ.source, occSelected.occ.id, occSelected.selector.withUUID.uuid)
+        SourceMonitoredOccurrenceHDFS(occSelected.source,
+          occSelected.id,
+          occSelected.uuid,
+          occSelected.y,
+          occSelected.m,
+          occSelected.d)
       }
       .coalesce(10)
       .write
       .mode(saveMode)
-      .partitionBy("source")
+      .partitionBy("source", "y", "m", "d")
       .parquet(s"$outputPath/source-of-monitored-occurrence")
 
     occurrences
