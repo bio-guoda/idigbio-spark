@@ -12,7 +12,7 @@ libraryDependencies ++= Seq(
   "com.github.scopt" %% "scopt" % "3.3.0",
   "io.spray" %%  "spray-json" % "1.3.2",
   "org.globalnames" %% "gnparser" % "0.3.3",
-  "org.effechecka" %% "effechecka-selector" % "0.0.2-SNAPSHOT",
+  "org.effechecka" %% "effechecka-selector" % "0.0.3",
   "org.apache.spark" %% "spark-sql" % sparkV % "provided",
   "org.scalatest" %% "scalatest" % "3.0.1" % "test",
   "com.holdenkarau" %% "spark-testing-base" % s"2.1.0_0.6.0" % "test"
@@ -23,5 +23,5 @@ test in assembly := {}
 javaOptions ++= Seq("-Xms512M", "-Xmx2048M", "-XX:+CMSClassUnloadingEnabled")
 
 resolvers += Resolver.sonatypeRepo("public")
-resolvers += "effechecka-snapshots" at "https://s3.amazonaws.com/effechecka/snapshots"
+resolvers += "effechecka-releases" at "https://s3.amazonaws.com/effechecka/releases"
 
