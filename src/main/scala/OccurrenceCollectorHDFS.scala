@@ -50,9 +50,13 @@ class OccurrenceCollectorHDFS extends OccurrenceCollector {
 
     val selectors: Broadcast[Seq[OccurrenceSelector]] = sc.broadcast(occurrenceSelectors)
     val occurrenceCollection = occurrenceCollectionsFor(config, sqlContext, selectors)
-    writeToParquet(occurrenceCollection, config.outputPath, saveMode)
-    writeSummary(occurrenceSelectors, occurrenceCollection, config.outputPath)
+    writeAll(outputPath = config.outputPath, saveMode = saveMode, selectors = occurrenceSelectors, occurrences = occurrenceCollection)
 
+  }
+
+  def writeAll(selectors: Seq[OccurrenceSelector], occurrences: Dataset[SelectedOccurrence], outputPath: String, saveMode: SaveMode) = {
+    writeOccurrences(occurrences, outputPath, saveMode)
+    writeSummary(selectors, occurrences, outputPath)
   }
 
   def allSelectorsFor(sqlContext: SQLContext, outputPath: String): Seq[OccurrenceSelector] = {
@@ -65,7 +69,7 @@ class OccurrenceCollectorHDFS extends OccurrenceCollector {
       .collect.toSeq
   }
 
-  def writeToParquet(occurrences: Dataset[SelectedOccurrence], outputPath: String, saveMode: SaveMode = SaveMode.Append) = {
+  def writeOccurrences(occurrences: Dataset[SelectedOccurrence], outputPath: String, saveMode: SaveMode = SaveMode.Append) = {
     import occurrences.sqlContext.implicits._
 
     val occurrencesMapped = occurrences.map { selOcc =>

@@ -295,18 +295,26 @@ class SparkJobs$Test extends TestSparkContext with DwCSparkHandler {
     val sqlContext = new SQLContext(sc)
     import sqlContext.implicits._
 
+    val animaliaInsecta = OccurrenceSelector("Animalia|Insecta", "ENVELOPE(-150,-50,40,10)", "")
     val occurrences = Seq(SelectedOccurrence(Occurrence(lat = "11.4", lng = "12.2",
       taxonPath = "Animalia|Insecta|Apis", eventDate = "2017-01-01",
       id = "http://www.inaturalist.org/observations/1053719", source = "some data source", sourceDate = "20170703"),
-      OccurrenceSelector("Animalia|Insecta", "ENVELOPE(-150,-50,40,10)", "")))
+      animaliaInsecta))
 
+    val animaliaAves = OccurrenceSelector("Animalia|Aves", "ENVELOPE(-150,-50,40,10)", "")
     val occurrences2 = Seq(SelectedOccurrence(Occurrence(lat = "11.4", lng = "12.2",
       taxonPath = "Animalia|Aves", eventDate = "2017-01-01",
       id = "http://www.inaturalist.org/observations/1053720", source = "some data source", sourceDate = "20170703"),
-      OccurrenceSelector("Animalia|Aves", "ENVELOPE(-150,-50,40,10)", "")))
+      animaliaAves))
 
     scala.reflect.io.File(testPath).exists should be(false)
-    new OccurrenceCollectorHDFS().writeToParquet(occurrences = occurrences.toDS(), outputPath = testPath, saveMode = SaveMode.Append)
+
+    new OccurrenceCollectorHDFS().writeAll(
+      occurrences = occurrences.toDS(),
+      selectors = Seq(animaliaInsecta),
+      outputPath = testPath,
+      saveMode = SaveMode.Append)
+
     scala.reflect.io.File(testPath).exists should be(true)
 
     val occurrenceRead = sqlContext.read.parquet(testPath + "/occurrence")
@@ -334,12 +342,17 @@ class SparkJobs$Test extends TestSparkContext with DwCSparkHandler {
     sourceOfMonitoredOccurrences.select("m").as[String].take(1) should be(Array("7"))
     sourceOfMonitoredOccurrences.select("d").as[String].take(1) should be(Array("3"))
 
-    new OccurrenceCollectorHDFS().writeToParquet(occurrences2.toDS(), testPath, SaveMode.Append)
+    new OccurrenceCollectorHDFS().writeAll(
+      occurrences = occurrences2.toDS(),
+      selectors = Seq(animaliaAves),
+      outputPath = testPath,
+      saveMode = SaveMode.Append)
+
     val occurrenceRead2 = sqlContext.read.parquet(testPath + "/occurrence")
     occurrenceRead2.select("taxon").as[String].take(2) should be(Array("Animalia|Insecta|Apis", "Animalia|Aves"))
     occurrenceRead2.count() should be(2)
 
-    new OccurrenceCollectorHDFS().writeToParquet(occurrences.toDS(), testPath, SaveMode.Append)
+    new OccurrenceCollectorHDFS().writeOccurrences(occurrences.toDS(), testPath, SaveMode.Append)
     val occurrenceRead3 = sqlContext.read.parquet(testPath + "/occurrence")
     occurrenceRead3.select("taxon").as[String].take(3) should contain only("Animalia|Insecta|Apis", "Animalia|Aves")
     occurrenceRead3.count() should be(3)
@@ -350,7 +363,12 @@ class SparkJobs$Test extends TestSparkContext with DwCSparkHandler {
     someSelectors should contain(OccurrenceSelector("Animalia|Aves", "ENVELOPE(-150,-50,40,10)", ""))
     someSelectors.length should be(2)
 
-    new OccurrenceCollectorHDFS().writeToParquet(occurrences.toDS(), testPath, SaveMode.Overwrite)
+    new OccurrenceCollectorHDFS().writeAll(
+      occurrences = occurrences.toDS(),
+      selectors = Seq(animaliaInsecta),
+      outputPath = testPath,
+      saveMode = SaveMode.Overwrite)
+
     val occurrenceRead4 = sqlContext.read.parquet(testPath + "/occurrence")
     occurrenceRead4.select("taxon").as[String].take(3) should be(Array("Animalia|Insecta|Apis"))
     occurrenceRead4.count() should be(1)
