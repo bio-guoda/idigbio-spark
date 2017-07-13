@@ -51,6 +51,8 @@ class OccurrenceCollectorHDFS extends OccurrenceCollector {
     val selectors: Broadcast[Seq[OccurrenceSelector]] = sc.broadcast(occurrenceSelectors)
     val occurrenceCollection = occurrenceCollectionsFor(config, sqlContext, selectors)
     writeToParquet(occurrenceCollection, config.outputPath, saveMode)
+    writeSummary(occurrenceSelectors, occurrenceCollection, config.outputPath)
+
   }
 
   def allSelectorsFor(sqlContext: SQLContext, outputPath: String): Seq[OccurrenceSelector] = {
@@ -115,15 +117,19 @@ class OccurrenceCollectorHDFS extends OccurrenceCollector {
       .mode(saveMode)
       .partitionBy("source", "y", "m", "d")
       .parquet(s"$outputPath/source-of-monitored-occurrence")
+  }
 
-    occurrences
+  def writeSummary(selectors: Seq[OccurrenceSelector], occurrences: Dataset[SelectedOccurrence], outputPath: String) = {
+    import occurrences.sqlContext.implicits._
+    val aggregate = occurrences
       .map { occSel =>
-        val uuid = UuidUtils.uuidFor(occSel.selector)
-        val uuidString = uuid.toString
-        (uuidString, (occSel.selector, 1))
-      }
-      .rdd.reduceByKey((agg, value) => (agg._1, agg._2 + value._2)).toDS()
-      .map { case (uuid, (selector, count)) =>
+        (UuidUtils.uuidFor(occSel.selector).toString, 1L)
+      }.rdd.reduceByKey((agg, value) => agg + value).toDS()
+
+      selectors.toDS().rdd
+        .map(selector => (UuidUtils.uuidFor(selector).toString, selector))
+        .leftOuterJoin(aggregate.rdd)
+        .map { case (uuid, (selector, count)) =>
         val f0 = uuid.substring(0, 2)
         val f1 = uuid.substring(2, 4)
         val f2 = uuid.substring(4, 6)
@@ -135,9 +141,9 @@ class OccurrenceCollectorHDFS extends OccurrenceCollector {
           taxonSelector = selector.taxonSelector,
           wktString = selector.wktString,
           traitSelector = selector.traitSelector,
-          itemCount = count
+          itemCount = count.getOrElse(0L)
         )
-      }
+      }.toDS()
       .coalesce(10)
       .write
       .mode(SaveMode.Append)

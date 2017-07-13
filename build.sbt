@@ -11,7 +11,7 @@ libraryDependencies ++= Seq(
   "org.apache.commons" % "commons-csv" % "1.1",
   "com.github.scopt" %% "scopt" % "3.3.0",
   "io.spray" %%  "spray-json" % "1.3.2",
-  "org.globalnames" %% "gnparser" % "0.3.3",
+  "org.globalnames" %% "gnparser" % "0.3.3" excludeAll( ExclusionRule(organization = "com.fasterxml.jackson.core") ),
   "org.effechecka" %% "effechecka-selector" % "0.0.3",
   "org.apache.spark" %% "spark-sql" % sparkV % "provided",
   "org.scalatest" %% "scalatest" % "3.0.1" % "test",

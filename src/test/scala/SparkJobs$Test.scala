@@ -355,4 +355,27 @@ class SparkJobs$Test extends TestSparkContext with DwCSparkHandler {
     occurrenceRead4.select("taxon").as[String].take(3) should be(Array("Animalia|Insecta|Apis"))
     occurrenceRead4.count() should be(1)
   }
+
+  "empty occurrence collection" should "be saved to hdfs" in {
+    val testPath = "target/some/hdfs"
+    FileUtils.deleteDirectory(new File(testPath))
+    val sqlContext = new SQLContext(sc)
+    import sqlContext.implicits._
+
+    val occurrences = Seq[SelectedOccurrence]()
+
+    scala.reflect.io.File(testPath).exists should be(false)
+    new OccurrenceCollectorHDFS().writeSummary(Seq(OccurrenceSelector("Animalia|Insecta", "ENVELOPE(-150,-50,40,10)", "")),
+      occurrences = occurrences.toDS(), outputPath = testPath)
+    scala.reflect.io.File(testPath).exists should be(true)
+
+    val occurrenceSummaryRead = sqlContext.read.parquet(testPath + "/occurrence-summary")
+    occurrenceSummaryRead.count() should be(1)
+    occurrenceSummaryRead.select("uuid").as[String].take(1) should be(Array("55e4b0a0-bcd9-566f-99bc-357439011d85"))
+    occurrenceSummaryRead.select("itemCount").as[Long].take(1) should be(Array(0L))
+    occurrenceSummaryRead.select("taxonSelector").as[String].take(1) should be(Array("Animalia|Insecta"))
+    occurrenceSummaryRead.select("wktString").as[String].take(1) should be(Array("ENVELOPE(-150,-50,40,10)"))
+    occurrenceSummaryRead.select("traitSelector").as[String].take(1) should be(Array(""))
+
+  }
 }
