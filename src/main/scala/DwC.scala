@@ -1,14 +1,18 @@
+import java.io.StringReader
+import java.net.{URI, URL}
+
 import scala.xml.XML
-import scala.io.Source
-import java.net.URL
-import java.io.File
 
 object DwC {
 
   case class Meta(coreTerms: Seq[String], delimiter: String, quote: String, fileURIs: Seq[String], skipHeaderLines: Int)
 
-  def readMeta(metaURL: URL): Option[Meta] = try {
-    val meta = XML.load(metaURL)
+  def readMeta(metaURL: URI, metaString: Option[String] = None): Option[Meta] = try {
+    val meta = metaString match {
+      case Some(xmlString) => XML.load(new StringReader(xmlString))
+      case None => XML.load(metaURL.toURL)
+    }
+
     val delimiter = (meta \\ "core" \\ "@fieldsTerminatedBy") map { _ text } headOption match {
       case Some(d) => d
       case None    => ","

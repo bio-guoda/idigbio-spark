@@ -1,4 +1,4 @@
-import java.net.URL
+import java.net.{URI, URL}
 
 import DwC.Meta
 import org.apache.spark.sql._
@@ -8,19 +8,23 @@ import org.apache.spark.{SparkConf, SparkContext}
 
 trait DwCHandler {
   def toDF2(sqlCtx: SQLContext, metas: Seq[String]): Seq[(String, DataFrame)] = {
-    metaToDF(sqlCtx: SQLContext, parseMeta(metas))
+    metaToDF(sqlCtx: SQLContext, parseMeta(metas.map((_, None))))
   }
 
-  def parseMeta(metaLocators: Seq[String]): Seq[Meta]
+  def parseMeta(metaLocators: Seq[(String, Option[String])]): Seq[Meta]
 
   def metaToDF(sqlCtx: SQLContext, metas: Seq[Meta]): Seq[(String, DataFrame)]
 }
 
 trait DwCSparkHandler extends DwCHandler {
 
-  def parseMeta(metaLocators: Seq[String]): Seq[Meta] = {
-    val metaURLs: Seq[URL] = metaLocators map { meta => new URL(meta) }
-    metaURLs flatMap { metaURL: URL => DwC.readMeta(metaURL) }
+  def parseMeta(metaLocators: Seq[(String, Option[String])]): Seq[Meta] = {
+    val metaURIs: Seq[(URI, Option[String])] = metaLocators map { meta => (URI.create(meta._1), meta._2) }
+
+    metaURIs flatMap { case(metaURL: URI, xmlString: Option[String]) => {
+      DwC.readMeta(metaURL, xmlString)
+    }
+    }
   }
 
   def metaToDF(sqlCtx: SQLContext, metas: Seq[Meta]): Seq[(String, DataFrame)] = {
@@ -67,7 +71,10 @@ object DarwinCoreToParquet extends DwCSparkHandler {
             println(s"attempting to process dwc meta [$archive]")
           }
 
-          val metas = parseMeta(config.archives)
+          val metaURIsAndTheirXmlStrings = config.archives map {
+            archive => (archive, Some(sqlContext.read.textFile(archive).collect.mkString))
+          }
+          val metas = parseMeta(metaURIsAndTheirXmlStrings)
           for ((sourceLocation, df) <- metaToDF(sqlCtx = sqlContext, metas = metas)) {
             df.write.format("parquet").save(parquetPathString(sourceLocation))
           }
