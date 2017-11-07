@@ -100,7 +100,7 @@ class OccurrenceCollectorHDFS extends OccurrenceCollector {
     }
 
     occurrencesMapped
-      .coalesce(10)
+      //.coalesce(10)
       .write
       .mode(saveMode)
       .partitionBy("u0", "u1", "u2", "uuid", "y", "m", "d")
@@ -116,7 +116,7 @@ class OccurrenceCollectorHDFS extends OccurrenceCollector {
           occSelected.m,
           occSelected.d)
       }
-      .coalesce(10)
+      //.coalesce(10)
       .write
       .mode(saveMode)
       .partitionBy("source", "y", "m", "d")
@@ -148,7 +148,7 @@ class OccurrenceCollectorHDFS extends OccurrenceCollector {
           itemCount = count.getOrElse(0L)
         )
       }.toDS()
-      .coalesce(10)
+      //.coalesce(10)
       .write
       .mode(SaveMode.Append)
       .partitionBy("u0", "u1", "u2", "uuid")
