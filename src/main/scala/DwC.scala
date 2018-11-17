@@ -1,5 +1,5 @@
 import java.io.StringReader
-import java.net.{URI, URL}
+import java.net.URI
 
 import scala.xml.XML
 

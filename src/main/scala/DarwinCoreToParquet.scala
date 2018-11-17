@@ -1,4 +1,4 @@
-import java.net.{URI, URL}
+import java.net.URI
 
 import DwC.Meta
 import org.apache.spark.sql._
@@ -33,13 +33,14 @@ trait DwCSparkHandler extends DwCHandler {
         StructField(_, StringType)
       })
       meta.fileURIs map { fileLocation =>
-        println(s"attempting to load [$fileLocation]...")
+        Console.err.print(s"[$fileLocation] loading...")
         val df = sqlCtx.read.format("csv").
           option("delimiter", meta.delimiter).
           option("quote", meta.quote).
           schema(schema).
           load(fileLocation.toString)
         val exceptHeaders = df.except(df.limit(meta.skipHeaderLines))
+        Console.err.println(s" done.")
         (fileLocation, exceptHeaders)
       }
     }
@@ -68,22 +69,37 @@ object DarwinCoreToParquet extends DwCSparkHandler {
         try {
           sqlContext = new SQLContext(ctx)
           for (archive <- config.archives) {
-            println(s"attempting to process dwc meta [$archive]")
           }
 
           val metaURIsAndTheirXmlStrings = config.archives map {
-            archive => (archive, Some(sqlContext.read.textFile(archive).collect.mkString))
+            archive => {
+              Console.err.print(s"[$archive] reading...")
+              val xmlString = Some(sqlContext.read.textFile(archive).collect.mkString)
+              Console.err.println(s" done.")
+              (archive, xmlString)
+            }
           }
           val metas = parseMeta(metaURIsAndTheirXmlStrings)
           for ((sourceLocation, df) <- metaToDF(sqlCtx = sqlContext, metas = metas)) {
-            df.write.format("parquet").save(parquetPathString(sourceLocation))
+            val parquetFile = parquetPathString(sourceLocation)
+            Console.err.print(s"[$parquetFile] saving...")
+            df.write.format("parquet").save(parquetFile)
+            println(parquetFile)
+            Console.err.println(s" done.")
+          }
+        } catch {
+          case e: Throwable => {
+            Console.err.println()
+            Console.err.println("failed due to: [" + e.getMessage + "]")
+            SparkUtil.stopAndExit(sc, 1)
           }
         } finally {
-          SparkUtil.stopAndExit(sc)
+          SparkUtil.stopAndExit(sc, 0)
         }
       }
       case None =>
-      // arguments are bad, error message will have been displayed
+        // arguments are bad, error message will have been displayed
+        SparkUtil.stopAndExit(sc, 1)
     }
 
   }
