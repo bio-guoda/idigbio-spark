@@ -13,8 +13,6 @@ import org.apache.spark.sql._
 
 import scala.util.{Failure, Success, Try}
 
-case class ZipEntries(path: String, entry: String, lineNumber: Int, line: String)
-
 object PrestonUtil {
 
   def unzip(fileAndStream: (String, InputStream),
@@ -105,7 +103,6 @@ object PrestonUtil {
     // so pre-emptively removing them at expense of extra processing costs
     val nonEmptyPatterns = pathPatterns.filter(x => fs.globStatus(new Path(x)).nonEmpty)
     val unzipAttempts = unzipTo(nonEmptyPatterns, dst)
-
 
     unzipAttempts.foreach(x => {
       val errorMsg = x._2 match {

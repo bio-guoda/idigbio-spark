@@ -15,7 +15,7 @@ libraryDependencies ++= Seq(
   "org.effechecka" %% "effechecka-selector" % "0.0.3",
   "org.apache.spark" %% "spark-sql" % sparkV % "provided",
   "org.scalatest" %% "scalatest" % "3.0.1" % "test",
-  "com.holdenkarau" %% "spark-testing-base" % s"2.1.0_0.6.0" % "test"
+  "com.holdenkarau" %% "spark-testing-base" % s"2.1.0_0.10.0" % "test"
 )
 
 test in assembly := {}
