@@ -4,7 +4,9 @@ import java.io.{File, FileInputStream, InputStream}
 import java.net.URI
 import java.nio.file.{Files, Paths}
 
+import bio.guoda.preston.spark.PrestonUtil.outputPathForEntry
 import com.holdenkarau.spark.testing.SharedSparkContext
+import com.twitter.chill.ClosureCleaner
 import org.apache.commons.compress.compressors.bzip2.BZip2CompressorInputStream
 import org.apache.commons.io.FileUtils
 import org.apache.hadoop.fs.Path
@@ -31,11 +33,11 @@ class PrestonUtil$Test extends TestSparkContext {
   override implicit def reuseContextIfPossible: Boolean = true
 
   "output path generate" should "provide a path" in {
-    val input = new Path("file:///some/path/some/file")
+    val input = new Path("file:///some/one/two/file")
     val outputPath = new Path("file:///some/output/path")
     val entryName = "somename.txt"
     val output: Path = PrestonUtil.outputPathForEntry(entryName, input, outputPath)
-    output.toUri should be(URI.create("file:/some/output/path/file/somename.txt.bz2"))
+    output.toUri should be(URI.create("file:/some/output/path/one/two/file/somename.txt.bz2"))
   }
 
   "unzip a file" should "unpack and bzip2 compress the entries" in {
@@ -91,8 +93,9 @@ class PrestonUtil$Test extends TestSparkContext {
 
     PrestonUtil.export(prestonDataDir.getAbsolutePath, tmpDir.getAbsolutePath)
 
-    new File(new File(tmpDir, "d85a59e9011e586fe865e963a9b6465e11a10e26ed85bf36b7707ea0dbfcadc1"), "occurrence.txt.bz2").exists() should be(true)
-    new File(new File(tmpDir, "d85a59e9011e586fe865e963a9b6465e11a10e26ed85bf36b7707ea0dbfcadc1"), "meta.xml.bz2").exists() should be(true)
+    val baseOutputDir = new File(URI.create(tmpDir.toURI.toString + "d8/5a/d85a59e9011e586fe865e963a9b6465e11a10e26ed85bf36b7707ea0dbfcadc1"))
+    new File(baseOutputDir, "occurrence.txt.bz2").exists() should be(true)
+    new File(baseOutputDir, "meta.xml.bz2").exists() should be(true)
 
     FileUtils.deleteDirectory(tmpDir)
   }

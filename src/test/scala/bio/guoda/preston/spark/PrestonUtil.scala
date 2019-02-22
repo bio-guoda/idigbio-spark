@@ -1,6 +1,7 @@
 package bio.guoda.preston.spark
 
 import java.io.InputStream
+import java.net.URI
 import java.util.zip.ZipInputStream
 
 import org.apache.commons.compress.compressors.bzip2.BZip2CompressorOutputStream
@@ -13,7 +14,14 @@ import org.apache.spark.sql._
 
 import scala.util.{Failure, Success, Try}
 
-object PrestonUtil {
+object PrestonUtil extends Serializable {
+
+  def outputPathForEntry(name: String, src: Path, dst: Path): Path = {
+    val parent = src.getParent
+    val grandParent = parent.getParent
+    val nestedDst = new Path(new Path(dst, grandParent.getName), parent.getName)
+    new Path(new Path(nestedDst, src.getName), s"$name.bz2")
+  }
 
   def unzip(fileAndStream: (String, InputStream),
             entryHandler: (InputStream, Path) => Try[String],
@@ -41,8 +49,9 @@ object PrestonUtil {
 
   def handleEntry(is: InputStream, outputPath: Path)(implicit conf: SparkConf): Try[String] = {
     Try {
-      val fs = FileSystem.get(SparkSession.builder().config(conf).getOrCreate().sparkContext.hadoopConfiguration)
-      val dos = fs.create(outputPath, false)
+      val fs = FileSystem.get(SparkSession.builder().getOrCreate().sparkContext.hadoopConfiguration)
+      // overwrites existing by default
+      val dos = fs.create(outputPath)
       val os = new BZip2CompressorOutputStream(dos)
       val copyAttempt = Try(IOUtils.copy(is, os))
       os.flush()
@@ -54,6 +63,16 @@ object PrestonUtil {
     }
   }
 
+  def saferUnzip(fileAndStream: (String, PortableDataStream),
+                 entryHandler: (InputStream, Path) => Try[String],
+                 outputPathGen: (String, String) => Path)(implicit spark: SparkSession): Iterator[(String, Try[String])] = {
+    val iterator = unzip((fileAndStream._1, fileAndStream._2.open()), entryHandler, outputPathGen)
+
+    new Iterator[(String, Try[String])] {
+      override def hasNext: Boolean = Try(iterator.hasNext).getOrElse(false)
+      override def next(): (String, Try[String]) = iterator.next()
+    }
+  }
 
   def unzipTo(paths: Seq[String], dst: String)(implicit spark: SparkSession): RDD[(String, Try[String])] = {
 
@@ -75,19 +94,6 @@ object PrestonUtil {
         case Failure(exception) => Iterator((x._1, Failure(exception)))
       }
     })
-  }
-
-  def saferUnzip(fileAndStream: (String, PortableDataStream), entryHandler: (InputStream, Path) => Try[String], outputPathGen: (String, String) => Path)(implicit spark: SparkSession): Iterator[(String, Try[String])] = {
-    val iterator = unzip((fileAndStream._1, fileAndStream._2.open()), entryHandler, outputPathGen)
-
-    new Iterator[(String, Try[String])] {
-      override def hasNext: Boolean = Try(iterator.hasNext).getOrElse(false)
-      override def next(): (String, Try[String]) = iterator.next()
-    }
-  }
-
-  def outputPathForEntry(name: String, src: Path, dst: Path): Path = {
-    new Path(new Path(dst, src.getName), s"$name.bz2")
   }
 
   // uses hadoop-style path matching: "/home/preston/preston-norway/data/*/*/*"
