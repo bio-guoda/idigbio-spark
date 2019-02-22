@@ -4,7 +4,7 @@ version := "1.5.9"
 
 scalaVersion := "2.11.11"
 
-val sparkV: String = "2.1.1"
+val sparkV: String = "2.2.3"
 
 libraryDependencies ++= Seq(
   "net.sf.opencsv" % "opencsv" % "2.3",
@@ -15,7 +15,7 @@ libraryDependencies ++= Seq(
   "org.effechecka" %% "effechecka-selector" % "0.0.3",
   "org.apache.spark" %% "spark-sql" % sparkV % "provided",
   "org.scalatest" %% "scalatest" % "3.0.1" % "test",
-  "com.holdenkarau" %% "spark-testing-base" % s"2.1.0_0.10.0" % "test"
+  "com.holdenkarau" %% "spark-testing-base" % s"2.2.0_0.10.0" % "test"
 )
 
 test in assembly := {}

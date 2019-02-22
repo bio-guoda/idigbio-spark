@@ -28,6 +28,8 @@ trait TestSparkContext extends FlatSpec with Matchers with BeforeAndAfter with S
 
 class PrestonUtil$Test extends TestSparkContext {
 
+  override implicit def reuseContextIfPossible: Boolean = true
+
   "output path generate" should "provide a path" in {
     val input = new Path("file:///some/path/some/file")
     val outputPath = new Path("file:///some/output/path")

@@ -25,6 +25,7 @@ trait TestSparkContext extends FlatSpec with Matchers with BeforeAndAfter with S
 }
 
 class SparkJobs$Test extends TestSparkContext with DwCSparkHandler {
+  override implicit def reuseContextIfPossible: Boolean = true
 
   "combining header and rows" should "create a record map" in {
     val header = new CSVParser().parseLine(traitHeader)
