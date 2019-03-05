@@ -29,9 +29,7 @@ trait DwCSparkHandler extends DwCHandler {
 
   def metaToDF(sqlCtx: SQLContext, metas: Seq[Meta]): Seq[(String, DataFrame)] = {
     val metaDFTuples = metas map { meta: Meta =>
-      val schema = StructType(meta.coreTerms map {
-        StructField(_, StringType)
-      })
+      val schema = meta.schema
       meta.fileURIs map { fileLocation =>
         Console.err.print(s"[$fileLocation] loading...")
         val df = sqlCtx.read.format("csv").

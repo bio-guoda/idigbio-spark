@@ -70,6 +70,7 @@ object PrestonUtil extends Serializable {
 
     new Iterator[(String, Try[String])] {
       override def hasNext: Boolean = Try(iterator.hasNext).getOrElse(false)
+
       override def next(): (String, Try[String]) = iterator.next()
     }
   }
@@ -98,7 +99,7 @@ object PrestonUtil extends Serializable {
 
   // uses hadoop-style path matching: "/home/preston/preston-norway/data/*/*/*"
   def export(src: String, dst: String)(implicit spark: SparkSession): Unit = {
-    // many files causes out-of-memory because all files are slurped into memory
+    // many files causes out-of-memory because all file paths are slurped into memory
     // attempt to split file batch in 256 bins
     val pathPatterns = Range(0, 16 * 16)
       .map(x => "%02x".format(x))

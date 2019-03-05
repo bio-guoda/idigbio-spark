@@ -1,11 +1,13 @@
 import java.io.StringReader
 import java.net.URI
 
+import org.apache.spark.sql.types.{StringType, StructField, StructType}
+
 import scala.xml.XML
 
 object DwC {
 
-  case class Meta(coreTerms: Seq[String], delimiter: String, quote: String, fileURIs: Seq[String], skipHeaderLines: Int)
+  case class Meta(schema: StructType, delimiter: String, quote: String, fileURIs: Seq[String], skipHeaderLines: Int, fileSuffix: String = "")
 
   def readMeta(metaURL: URI, metaString: Option[String] = None): Option[Meta] = try {
     val meta = metaString match {
@@ -31,12 +33,19 @@ object DwC {
 
     val baseURLParts = metaURL.toString.split("/").reverse.tail.reverse
     val locations = (meta \\ "core" \\ "location") map {
-      location => (baseURLParts ++ List(location text)) mkString ("/")
+      location => (baseURLParts ++ List(location text)) mkString "/"
     }
-    Some(Meta(paddedFieldTerms, delimiter, quote, locations, skipHeaderLines))
+    val suffixedLocation = locations.map(x => if (metaURL.toString.endsWith(".bz2")) x + ".bz2" else x)
+
+    val schema = StructType(paddedFieldTerms map {
+      StructField(_, StringType)
+    })
+
+    Some(Meta(schema, delimiter, quote, suffixedLocation, skipHeaderLines))
   } catch {
     case e: Exception =>
       println(s"failed to read from [$metaURL]")
+      e.printStackTrace()
       None
   }
 }

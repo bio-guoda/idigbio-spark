@@ -80,7 +80,7 @@ object ChecklistGenerator {
 
   def countByTaxonAndSort(rowList: RDD[Seq[(String, String)]]): RDD[(String, Int)] = {
     rowList.map(row => (TaxonFilter.taxonFields
-      .flatMap(row.toMap get).mkString("|"), 1))
+      .flatMap(row.toMap.get).mkString("|"), 1))
       .reduceByKey(_ + _)
       .sortBy(_._2, ascending = false)
   }
@@ -173,8 +173,7 @@ object ChecklistGenerator {
 
 object ChecklistBuilder {
   def buildChecklist(sc: SparkContext, df: DataFrame, wkt: String, taxa: Seq[String]): RDD[(String, Int)] = {
-    val sqlContext: SQLContext = SQLContextSingleton.getInstance(sc)
-    import sqlContext.implicits._
+    import df.sparkSession.implicits._
 
     val locationTerms = List("`http://rs.tdwg.org/dwc/terms/decimalLatitude`"
       , "`http://rs.tdwg.org/dwc/terms/decimalLongitude`")
