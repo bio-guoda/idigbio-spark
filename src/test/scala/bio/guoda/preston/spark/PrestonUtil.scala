@@ -6,13 +6,14 @@ import java.util.zip.ZipInputStream
 
 import org.apache.commons.compress.compressors.bzip2.BZip2CompressorOutputStream
 import org.apache.commons.io.IOUtils
-import org.apache.hadoop.fs.{FileSystem, Path}
+import org.apache.hadoop.fs.{FSDataOutputStream, FileSystem, Path}
 import org.apache.spark.SparkConf
 import org.apache.spark.input.PortableDataStream
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql._
 
 import scala.util.{Failure, Success, Try}
+import scala.xml.Source
 
 object PrestonUtil extends Serializable {
 
@@ -50,15 +51,20 @@ object PrestonUtil extends Serializable {
   def handleEntry(is: InputStream, outputPath: Path)(implicit conf: SparkConf): Try[String] = {
     Try {
       val fs = FileSystem.get(SparkSession.builder().getOrCreate().sparkContext.hadoopConfiguration)
-      // overwrites existing by default
-      val dos = fs.create(outputPath)
-      val os = new BZip2CompressorOutputStream(dos)
-      val copyAttempt = Try(IOUtils.copy(is, os))
-      os.flush()
-      os.close()
-      copyAttempt match {
-        case Success(_) => outputPath.toUri.toString
-        case Failure(exception) => throw exception
+
+      var dos: FSDataOutputStream = null
+      try {
+        // overwrites existing by default
+        dos = fs.create(outputPath)
+        val os = new BZip2CompressorOutputStream(dos)
+        val copyAttempt = Try(IOUtils.copy(is, os))
+        os.close()
+        copyAttempt match {
+          case Success(_) => outputPath.toUri.toString
+          case Failure(exception) => throw exception
+        }
+      } finally {
+        IOUtils.closeQuietly(dos)
       }
     }
   }
