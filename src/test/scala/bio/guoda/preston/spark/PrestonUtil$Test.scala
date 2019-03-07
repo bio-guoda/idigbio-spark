@@ -4,19 +4,17 @@ import java.io.{File, FileInputStream, InputStream}
 import java.net.URI
 import java.nio.file.{Files, Paths}
 
-import bio.guoda.preston.spark.PrestonUtil.outputPathForEntry
 import com.holdenkarau.spark.testing.SharedSparkContext
-import com.twitter.chill.ClosureCleaner
 import org.apache.commons.compress.compressors.bzip2.BZip2CompressorInputStream
 import org.apache.commons.io.FileUtils
 import org.apache.hadoop.fs.Path
-import org.apache.spark.SparkConf
+import org.apache.spark.{SparkConf, SparkContext}
+import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.SparkSession
 import org.scalatest._
 
 import scala.io.Source
 import scala.util.{Success, Try}
-
 
 trait TestSparkContext extends FlatSpec with Matchers with BeforeAndAfter with SharedSparkContext {
 
@@ -36,7 +34,7 @@ class PrestonUtil$Test extends TestSparkContext {
     val input = new Path("file:///some/one/two/file")
     val outputPath = new Path("file:///some/output/path")
     val entryName = "somename.txt"
-    val output: Path = PrestonUtil.outputPathForEntry(entryName, input, outputPath)
+    val output: Path = PrestonUtil.bz2PathForName(entryName, input, outputPath)
     output.toUri should be(URI.create("file:/some/output/path/one/two/file/somename.txt.bz2"))
   }
 
@@ -91,13 +89,47 @@ class PrestonUtil$Test extends TestSparkContext {
 
     val tmpDir = createTmpDir
 
-    PrestonUtil.export(prestonDataDir.getAbsolutePath, tmpDir.getAbsolutePath)
+    PrestonUtil.unzip(prestonDataDir.getAbsolutePath, tmpDir.getAbsolutePath)
 
     val baseOutputDir = new File(URI.create(tmpDir.toURI.toString + "d8/5a/d85a59e9011e586fe865e963a9b6465e11a10e26ed85bf36b7707ea0dbfcadc1"))
     new File(baseOutputDir, "occurrence.txt.bz2").exists() should be(true)
     new File(baseOutputDir, "meta.xml.bz2").exists() should be(true)
 
     FileUtils.deleteDirectory(tmpDir)
+  }
+
+  "generating hash path" should "do the right thing" in {
+    val path = PrestonUtil.datasetHashToPath("123455")
+    path should be ("12/34/123455")
+  }
+
+  "collecting metaData" should "create a sequenceFile" in {
+    val meta = getClass.getResource("/idigbio/bz2/meta.xml.bz2").toURI
+    val paths = Seq(new File(meta).getParentFile.toURI.toString)
+    val tmpDir = createTmpDir
+    val seqFile = tmpDir.toURI.toString + "/test.seq"
+
+    implicit val context: SparkContext = sc
+    val validXml = PrestonUtil.asXmlRDD(paths)
+    validXml.count should be(1)
+
+    validXml.saveAsSequenceFile(seqFile)
+
+    new File(URI.create(seqFile + "/part-00000")).exists() should be(true)
+
+    val readValidXml: RDD[(String, String)] = sc.sequenceFile(seqFile)
+
+    readValidXml.equals(validXml)
+
+    readValidXml.count() should be(1)
+
+    val first = readValidXml.first
+
+    first._1 should be("bz2")
+    first._2 should startWith("""<archive xmlns="http://rs.tdwg.org/dwc/text/">""")
+
+    FileUtils.deleteDirectory(tmpDir)
+
   }
 
   private def testUnzip(resourcePath: String) = {

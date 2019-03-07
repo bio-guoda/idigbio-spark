@@ -1,23 +1,24 @@
 package bio.guoda.preston.spark
 
-import java.io.InputStream
-import java.net.URI
+import java.io.{InputStream, StringReader}
 import java.util.zip.ZipInputStream
 
+import bio.guoda.DwC
+import bio.guoda.DwC.Meta
 import org.apache.commons.compress.compressors.bzip2.BZip2CompressorOutputStream
 import org.apache.commons.io.IOUtils
 import org.apache.hadoop.fs.{FSDataOutputStream, FileSystem, Path}
-import org.apache.spark.SparkConf
 import org.apache.spark.input.PortableDataStream
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql._
+import org.apache.spark.sql.SparkSession
+import org.apache.spark.{SparkConf, SparkContext}
 
 import scala.util.{Failure, Success, Try}
-import scala.xml.Source
+import scala.xml.XML
 
 object PrestonUtil extends Serializable {
 
-  def outputPathForEntry(name: String, src: Path, dst: Path): Path = {
+  def bz2PathForName(name: String, src: Path, dst: Path): Path = {
     val parent = src.getParent
     val grandParent = parent.getParent
     val nestedDst = new Path(new Path(dst, grandParent.getName), parent.getName)
@@ -88,7 +89,7 @@ object PrestonUtil extends Serializable {
     val binaryFiles = spark.sparkContext.union(binaryFilesSeq)
 
     def outputPathGenerator(src: String, name: String): Path = {
-      outputPathForEntry(name, new Path(src), new Path(dst))
+      bz2PathForName(name, new Path(src), new Path(dst))
     }
 
     implicit val conf: SparkConf = spark.sparkContext.getConf
@@ -103,18 +104,38 @@ object PrestonUtil extends Serializable {
     })
   }
 
-  // uses hadoop-style path matching: "/home/preston/preston-norway/data/*/*/*"
-  def export(src: String, dst: String)(implicit spark: SparkSession): Unit = {
+  def partitionedArchivePaths(dataDir: String)(implicit spark: SparkSession): Seq[String] = {
     // many files causes out-of-memory because all file paths are slurped into memory
     // attempt to split file batch in 256 bins
     val pathPatterns = Range(0, 16 * 16)
       .map(x => "%02x".format(x))
-      .map(x => s"$src/${x.substring(0, 1)}*/${x.substring(1, 2)}*/*")
+      .map(x => s"$dataDir/${x.substring(0, 1)}*/${x.substring(1, 2)}*/*")
 
     val fs = FileSystem.get(spark.sparkContext.hadoopConfiguration)
     // spark implementation crashes on pathPatterns with no matches
     // so pre-emptively removing them at expense of extra processing costs
-    val nonEmptyPatterns = pathPatterns.filter(x => fs.globStatus(new Path(x)).nonEmpty)
+    pathPatterns.filter(x => fs.globStatus(new Path(x)).nonEmpty)
+  }
+
+  def asXmlRDD(paths: Seq[String], pathSuffix: String = "/meta.xml.*")(implicit sc: SparkContext): RDD[(String, String)] = {
+    val filesSeq = paths.map(path => sc.wholeTextFiles(path + "/meta.xml*"))
+    val files = sc.union(filesSeq)
+
+    val parsedAndSerialized: RDD[(String, Try[String])] = files.map(portableFile => {
+      (portableFile._1.split("/").reverse.slice(1, 2).head,
+        Try {
+          scala.xml.XML.load(new java.io.StringReader(portableFile._2)).toString
+        })
+    })
+
+    parsedAndSerialized
+      .filter(_._2.isSuccess)
+      .map(x => (x._1, x._2.get))
+  }
+
+  // unpack zipfiles to bz2 files to facilitate for parallel processing
+  def unzip(src: String, dst: String)(implicit spark: SparkSession): Unit = {
+    val nonEmptyPatterns = partitionedArchivePaths(src)
     val unzipAttempts = unzipTo(nonEmptyPatterns, dst)
 
     unzipAttempts.foreach(x => {
@@ -125,4 +146,37 @@ object PrestonUtil extends Serializable {
       println(s"${x._1}\t${x._2.getOrElse("")}\t${if (x._2.isSuccess) "OK" else "ERROR"}\t$errorMsg")
     })
   }
+
+  // take unpacked darwin core archives and generate sequence files for eml.xml and meta.xml
+  // using dataset sha256 hashes as keys.
+  def dwcToSeqs(src: String, dest: String)(implicit spark: SparkSession): Unit = {
+    val nonEmptyPatterns = partitionedArchivePaths(src)
+    implicit val ctx: SparkContext = spark.sparkContext
+
+    Seq("meta.xml", "eml.xml").foreach(suffix => {
+      val metaXml = asXmlRDD(nonEmptyPatterns, s"/$suffix*")
+      metaXml.saveAsSequenceFile(dest + s"/$suffix.seq")
+    })
+  }
+
+  def datasetHashToPath(hash: String): String = {
+    s"${hash.slice(0, 2)}/${hash.slice(2, 4)}/$hash"
+  }
+
+  // takes a
+  def metaSeqToParquet(src: String, dest: String)(implicit spark: SparkSession): Unit = {
+    val metaRDD: RDD[(String, String)] = spark.sparkContext.sequenceFile(s"$src/meta.xml.seq")
+    val metas: RDD[Meta] = metaRDD
+      .map(p => (p._1, XML.load(new StringReader(p._2))))
+      .flatMap(p => {
+        DwC.parseMeta(p._2) match {
+          case Some(meta) =>
+            val files =  meta.fileURIs.map(file => s"$src/${datasetHashToPath(p._1)}/$file.bz2")
+            Some(meta.copy(fileURIs = files))
+          case None => None
+        }
+      })
+  }
+
+
 }

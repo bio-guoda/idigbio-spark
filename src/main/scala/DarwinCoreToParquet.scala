@@ -1,9 +1,10 @@
 import java.net.URI
 
-import DwC.Meta
+import bio.guoda.DwC
 import org.apache.spark.sql._
 import org.apache.spark.sql.types._
 import org.apache.spark.{SparkConf, SparkContext}
+import bio.guoda.DwC.Meta
 
 
 trait DwCHandler {
@@ -28,21 +29,8 @@ trait DwCSparkHandler extends DwCHandler {
   }
 
   def metaToDF(sqlCtx: SQLContext, metas: Seq[Meta]): Seq[(String, DataFrame)] = {
-    val metaDFTuples = metas map { meta: Meta =>
-      val schema = meta.schema
-      meta.fileURIs map { fileLocation =>
-        Console.err.print(s"[$fileLocation] loading...")
-        val df = sqlCtx.read.format("csv").
-          option("delimiter", meta.delimiter).
-          option("quote", meta.quote).
-          schema(schema).
-          load(fileLocation.toString)
-        val exceptHeaders = df.except(df.limit(meta.skipHeaderLines))
-        Console.err.println(s" done.")
-        (fileLocation, exceptHeaders)
-      }
-    }
-    metaDFTuples.flatten
+    implicit val ctx: SQLContext = sqlCtx
+    DwC.asDF(metas)
   }
 }
 

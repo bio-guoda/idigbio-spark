@@ -1,3 +1,5 @@
+package bio.guoda
+
 import java.io.File
 import java.net.URI
 
@@ -15,6 +17,7 @@ class DwC$Test extends FlatSpec with Matchers {
         meta.skipHeaderLines should be(1)
         meta.schema.size should be(224)
         meta.schema.fieldNames should contain("http://rs.tdwg.org/dwc/terms/genus")
+        meta.schema.fields.count(_.nullable) should be(meta.schema.size)
         meta.fileURIs.size should be(1)
         meta.fileURIs should contain(getClass.getResource("/gbif/occurrence.txt").toString)
       }
