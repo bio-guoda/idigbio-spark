@@ -4,14 +4,13 @@ import java.io.{File, FileInputStream, InputStream}
 import java.net.URI
 import java.nio.file.{Files, Paths}
 
-import bio.guoda.DwC
 import com.holdenkarau.spark.testing.SharedSparkContext
 import org.apache.commons.compress.compressors.bzip2.BZip2CompressorInputStream
 import org.apache.commons.io.FileUtils
 import org.apache.hadoop.fs.Path
-import org.apache.spark.{SparkConf, SparkContext}
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.{SQLContext, SparkSession}
+import org.apache.spark.sql.SparkSession
+import org.apache.spark.{SparkConf, SparkContext}
 import org.scalatest._
 
 import scala.io.Source
@@ -144,7 +143,7 @@ class PrestonUtil$Test extends TestSparkContext {
   }
 
   "parquet files" should "be generated from meta.xml sequences" in {
-    implicit val spark: SparkSession = SparkSession.builder().config(conf).getOrCreate()
+    implicit val spark: SparkSession = SparkSession.builder().getOrCreate()
 
     val path = new File(getClass.getResource("/unpacked/meta.xml.seq/part-00000").toURI).getParentFile.getParentFile.toURI.toString
     val tmpDir = createTmpDir
