@@ -154,7 +154,7 @@ class PrestonUtil$Test extends TestSparkContext {
 
     val path = unpackedDir
     val schema: StructType = PrestonUtil.metaSeqToSchema(path)
-    schema.fields.length should be(186)
+    schema.fields.length should be(186 + 1)
   }
 
 
