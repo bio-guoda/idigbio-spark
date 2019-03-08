@@ -3,14 +3,15 @@ package bio.guoda
 import java.io.StringReader
 import java.net.URI
 
-import org.apache.spark.sql.{DataFrame, SQLContext}
+import org.apache.spark.SparkContext
+import org.apache.spark.sql._
 import org.apache.spark.sql.types.{StringType, StructField, StructType}
 
 import scala.xml.{Elem, XML}
 
 object DwC {
 
-  case class Meta(schema: StructType, delimiter: String, quote: String, fileURIs: Seq[String], skipHeaderLines: Int, fileSuffix: String = "")
+  case class Meta(schema: StructType, delimiter: String, quote: String, fileURIs: Seq[String], skipHeaderLines: Int, fileSuffix: String = "", derivedFrom: String = "")
 
   def parseMeta(meta: Elem): Option[Meta] = {
 
@@ -67,20 +68,34 @@ object DwC {
       None
   }
 
-  def asDF(metas: Seq[Meta])(implicit sqlCtx: SQLContext): Seq[(String, DataFrame)] = {
+  def asDF(metas: Seq[Meta])(implicit sqlCtx: SparkSession): Seq[(String, DataFrame)] = {
     val metaDFTuples = metas map { meta: Meta =>
-      meta.fileURIs map { fileLocation =>
-        Console.err.print(s"[$fileLocation] loading...")
-        val df = sqlCtx.read.format("csv").
-          option("delimiter", meta.delimiter).
-          option("quote", meta.quote).
-          schema(meta.schema).
-          load(fileLocation)
-        val exceptHeaders = df.except(df.limit(meta.skipHeaderLines))
-        Console.err.println(s" done.")
-        (fileLocation, exceptHeaders)
-      }
+      mapMeta(meta)
     }
     metaDFTuples.flatten
+  }
+
+  def mapMeta(meta: Meta)(implicit sqlCtx: SparkSession): Seq[(String, Dataset[Row])] = {
+    meta.fileURIs map { fileLocation =>
+      (fileLocation, toDS(meta, Seq(fileLocation), sqlCtx))
+    }
+  }
+
+  def mapMeta2(meta: Meta): Dataset[Row] = {
+    val session: SparkSession = SparkSession.builder.getOrCreate
+    toDS(meta, meta.fileURIs, session)
+  }
+
+  def toDS(meta: Meta, files: Seq[String], session: SparkSession): DataFrame = {
+    import org.apache.spark.sql.functions.lit
+    Console.err.print(s"[${meta.fileURIs.mkString(";")}] loading...")
+    val df = session.read
+      .option("delimiter", meta.delimiter)
+      .option("quote", meta.quote)
+      .schema(meta.schema)
+      .csv(files: _*)
+    val exceptHeaders = df.except(df.limit(meta.skipHeaderLines)).withColumn("http://www.w3.org/ns/prov#wasDerivedFrom", lit(meta.derivedFrom))
+    Console.err.println(s" done.")
+    exceptHeaders
   }
 }

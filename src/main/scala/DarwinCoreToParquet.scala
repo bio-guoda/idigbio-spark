@@ -8,13 +8,13 @@ import bio.guoda.DwC.Meta
 
 
 trait DwCHandler {
-  def toDF2(sqlCtx: SQLContext, metas: Seq[String]): Seq[(String, DataFrame)] = {
-    metaToDF(sqlCtx: SQLContext, parseMeta(metas.map((_, None))))
+  def toDF2(sqlCtx: SparkSession, metas: Seq[String]): Seq[(String, DataFrame)] = {
+    metaToDF(sqlCtx, parseMeta(metas.map((_, None))))
   }
 
   def parseMeta(metaLocators: Seq[(String, Option[String])]): Seq[Meta]
 
-  def metaToDF(sqlCtx: SQLContext, metas: Seq[Meta]): Seq[(String, DataFrame)]
+  def metaToDF(sqlCtx: SparkSession, metas: Seq[Meta]): Seq[(String, DataFrame)]
 }
 
 trait DwCSparkHandler extends DwCHandler {
@@ -28,15 +28,15 @@ trait DwCSparkHandler extends DwCHandler {
     }
   }
 
-  def metaToDF(sqlCtx: SQLContext, metas: Seq[Meta]): Seq[(String, DataFrame)] = {
-    implicit val ctx: SQLContext = sqlCtx
+  def metaToDF(sqlCtx: SparkSession, metas: Seq[Meta]): Seq[(String, DataFrame)] = {
+    implicit val spark: SparkSession = sqlCtx
     DwC.asDF(metas)
   }
 }
 
 object DarwinCoreToParquet extends DwCSparkHandler {
   implicit var sc: SparkContext = _
-  implicit var sqlContext: SQLContext = _
+  implicit var sqlContext: SparkSession = _
 
   case class Config(archives: Seq[String] = Seq())
 
@@ -53,7 +53,7 @@ object DarwinCoreToParquet extends DwCSparkHandler {
           .setAppName("dwc2parquet")
         val ctx: SparkContext = new SparkContext(conf)
         try {
-          sqlContext = new SQLContext(ctx)
+          sqlContext = SparkSession.builder().config(conf).getOrCreate()
           for (archive <- config.archives) {
           }
 

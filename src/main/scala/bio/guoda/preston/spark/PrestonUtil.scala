@@ -10,7 +10,7 @@ import org.apache.commons.io.IOUtils
 import org.apache.hadoop.fs.{FSDataOutputStream, FileSystem, Path}
 import org.apache.spark.input.PortableDataStream
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.SparkSession
+import org.apache.spark.sql.{SaveMode, SparkSession}
 import org.apache.spark.{SparkConf, SparkContext}
 
 import scala.util.{Failure, Success, Try}
@@ -160,22 +160,41 @@ object PrestonUtil extends Serializable {
   }
 
   def datasetHashToPath(hash: String): String = {
-    s"${hash.slice(0, 2)}/${hash.slice(2, 4)}/$hash"
+    val chopped = hash.replace("hash://sha256/", "")
+    s"${chopped.slice(0, 2)}/${chopped.slice(2, 4)}/$chopped"
   }
 
-  // takes a
-  def metaSeqToParquet(src: String, dest: String)(implicit spark: SparkSession): Unit = {
-    val metaRDD: RDD[(String, String)] = spark.sparkContext.sequenceFile(s"$src/meta.xml.seq")
+  // takes a sequence file with dataset hashes and associated meta.xml and turns it into an RDD
+  def metaSeqToRDD(src: String)(implicit spark: SparkSession): RDD[Meta] = {
+    val srcShort: String = chopTrailingSlash(src)
+    val metaRDD: RDD[(String, String)] = spark.sparkContext.sequenceFile(s"$srcShort/meta.xml.seq")
     val metas: RDD[Meta] = metaRDD
       .map(p => (p._1, XML.load(new StringReader(p._2))))
       .flatMap(p => {
         DwC.parseMeta(p._2) match {
           case Some(meta) =>
-            val files =  meta.fileURIs.map(file => s"$src/${datasetHashToPath(p._1)}/$file.bz2")
-            Some(meta.copy(fileURIs = files))
+            val files =  meta.fileURIs.map(file => s"$srcShort/${datasetHashToPath(p._1)}/$file.bz2")
+            Some(meta.copy(fileURIs = files, derivedFrom = s"hash://sha256/${p._1}"))
           case None => None
         }
       })
+    metas
+  }
+
+  private def chopTrailingSlash(src: String) = {
+    if (src.endsWith("/")) src.slice(0, src.length - 1) else src
+  }
+
+  def writeParquets(src: String, dest: String)(implicit spark: SparkSession): Unit = {
+    val metas = metaSeqToRDD(src)
+
+    val dfs = metas.map(meta => {
+      (meta.derivedFrom, DwC.mapMeta2(meta))
+    })
+
+    dfs.foreach(df => {
+      df._2.write.mode(SaveMode.Append).parquet(chopTrailingSlash(dest) + "/" + datasetHashToPath(df._1) + "/core.parquet")
+    })
   }
 
 
