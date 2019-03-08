@@ -10,7 +10,8 @@ import org.apache.commons.io.IOUtils
 import org.apache.hadoop.fs.{FSDataOutputStream, FileSystem, Path}
 import org.apache.spark.input.PortableDataStream
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.{SaveMode, SparkSession}
+import org.apache.spark.sql.types.{DataTypes, StructField, StructType}
+import org.apache.spark.sql.{DataFrame, SaveMode, SparkSession}
 import org.apache.spark.{SparkConf, SparkContext}
 
 import scala.util.{Failure, Success, Try}
@@ -173,7 +174,7 @@ object PrestonUtil extends Serializable {
       .flatMap(p => {
         DwC.parseMeta(p._2) match {
           case Some(meta) =>
-            val files =  meta.fileURIs.map(file => s"$srcShort/${datasetHashToPath(p._1)}/$file.bz2")
+            val files = meta.fileURIs.map(file => s"$srcShort/${datasetHashToPath(p._1)}/$file.bz2")
             Some(meta.copy(fileURIs = files, derivedFrom = s"hash://sha256/${p._1}"))
           case None => None
         }
@@ -181,20 +182,43 @@ object PrestonUtil extends Serializable {
     metas
   }
 
+  def metaSeqToSchema(path: String)(implicit spark: SparkSession): StructType = {
+    val metas = PrestonUtil.metaSeqToRDD(path)
+    val fields = metas.flatMap(meta => meta.schema.fields).distinct().collect()
+    StructType((fields ++ Seq(StructField(name = "http://www.w3.org/ns/prov#wasDerivedFrom", dataType = DataTypes.StringType, nullable = true))).distinct)
+  }
+
+
   private def chopTrailingSlash(src: String) = {
     if (src.endsWith("/")) src.slice(0, src.length - 1) else src
   }
 
-  def writeParquets(src: String, dest: String)(implicit spark: SparkSession): Unit = {
+  def writeParquets(src: String, dst: String)(implicit spark: SparkSession): Unit = {
     val metas = metaSeqToRDD(src)
 
-    val dfs = metas.map(meta => {
-      (meta.derivedFrom, DwC.mapMeta2(meta))
-    })
+    for (meta <- metas.toLocalIterator) {
+      val maybeSuccess = Try {
+        val df = DwC.toDS(meta, meta.fileURIs, spark)
+        val parquetPath = chopTrailingSlash(dst) + "/" + datasetHashToPath(meta.derivedFrom) + "/core.parquet"
+        df.coalesce(5).write.mode(SaveMode.Overwrite).parquet(parquetPath)
+        "OK"
+      }
+      Console.err.println(s"${meta.derivedFrom}\t${maybeSuccess.getOrElse("ERROR")}")
+    }
 
-    dfs.foreach(df => {
-      df._2.write.mode(SaveMode.Append).parquet(chopTrailingSlash(dest) + "/" + datasetHashToPath(df._1) + "/core.parquet")
-    })
+  }
+
+  def readParquets(src: String, schema: StructType)(implicit spark: SparkSession): DataFrame = {
+    if(!spark.sparkContext.getConf.getBoolean(key = "spark.sql.caseSensitive", defaultValue = false)) {
+      throw new IllegalStateException("please set [spark.sql.caseSensitive=true] to avoid schema merge conflicts")
+    }
+    spark.read.schema(schema).parquet(s"$src/*/*/*/core.parquet")
+  }
+
+  def readMergeAndRewriteParquets(src: String)(implicit spark: SparkSession): Unit = {
+    val schema = metaSeqToSchema(src)
+    val df = readParquets(src, schema)
+    df.write.mode(SaveMode.Overwrite).parquet(s"$src/core.parquet")
   }
 
 

@@ -5,6 +5,7 @@ import java.net.URI
 
 import org.apache.spark.SparkContext
 import org.apache.spark.sql._
+import org.apache.spark.sql.functions.lit
 import org.apache.spark.sql.types.{StringType, StructField, StructType}
 
 import scala.xml.{Elem, XML}
@@ -81,21 +82,27 @@ object DwC {
     }
   }
 
-  def mapMeta2(meta: Meta): Dataset[Row] = {
-    val session: SparkSession = SparkSession.builder.getOrCreate
-    toDS(meta, meta.fileURIs, session)
-  }
-
   def toDS(meta: Meta, files: Seq[String], session: SparkSession): DataFrame = {
     import org.apache.spark.sql.functions.lit
     Console.err.print(s"[${meta.fileURIs.mkString(";")}] loading...")
     val df = session.read
       .option("delimiter", meta.delimiter)
       .option("quote", meta.quote)
+      .option("spark.sql.caseSensitive", "true")
       .schema(meta.schema)
       .csv(files: _*)
     val exceptHeaders = df.except(df.limit(meta.skipHeaderLines)).withColumn("http://www.w3.org/ns/prov#wasDerivedFrom", lit(meta.derivedFrom))
     Console.err.println(s" done.")
     exceptHeaders
+  }
+
+  def readCore(meta: Meta, spark: SparkSession): DataFrame = {
+    import org.apache.spark.sql.functions.lit
+    val df = spark.read
+      .option("delimiter", meta.delimiter)
+      .option("quote", meta.quote)
+      .schema(meta.schema)
+      .csv(meta.fileURIs: _*)
+    df.except(df.limit(meta.skipHeaderLines)).withColumn("http://www.w3.org/ns/prov#wasDerivedFrom", lit(meta.derivedFrom))
   }
 }
