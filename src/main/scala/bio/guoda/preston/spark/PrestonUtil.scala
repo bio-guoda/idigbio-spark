@@ -12,6 +12,7 @@ import org.apache.spark.input.PortableDataStream
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.types.{DataTypes, StructField, StructType}
 import org.apache.spark.sql.{DataFrame, SaveMode, SparkSession}
+import org.apache.spark.storage.StorageLevel
 import org.apache.spark.{SparkConf, SparkContext}
 
 import scala.util.{Failure, Success, Try}
@@ -218,7 +219,7 @@ object PrestonUtil extends Serializable {
   def readMergeAndRewriteParquets(src: String)(implicit spark: SparkSession): Unit = {
     val schema = metaSeqToSchema(src)
     val df = readParquets(src, schema)
-    df.write.mode(SaveMode.Overwrite).parquet(s"$src/core.parquet")
+    df.persist(StorageLevel.MEMORY_AND_DISK_SER).write.mode(SaveMode.Overwrite).parquet(s"$src/core.parquet")
   }
 
 
