@@ -201,7 +201,11 @@ object PrestonUtil extends Serializable {
       val maybeSuccess = Try {
         val df = DwC.toDS(meta, meta.fileURIs, spark)
         val parquetPath = chopTrailingSlash(dst) + "/" + datasetHashToPath(meta.derivedFrom) + "/core.parquet"
-        df.coalesce(5).write.mode(SaveMode.Overwrite).parquet(parquetPath)
+        df.persist(StorageLevel.MEMORY_AND_DISK_SER)
+          .coalesce(5)
+          .write
+          .mode(SaveMode.Ignore)
+          .parquet(parquetPath)
         "OK"
       }
       Console.err.println(s"${meta.derivedFrom}\t${maybeSuccess.getOrElse("ERROR")}")
@@ -210,7 +214,7 @@ object PrestonUtil extends Serializable {
   }
 
   def readParquets(src: String, schema: StructType)(implicit spark: SparkSession): DataFrame = {
-    if(!spark.sparkContext.getConf.getBoolean(key = "spark.sql.caseSensitive", defaultValue = false)) {
+    if (!spark.sparkContext.getConf.getBoolean(key = "spark.sql.caseSensitive", defaultValue = false)) {
       throw new IllegalStateException("please set [spark.sql.caseSensitive=true] to avoid schema merge conflicts")
     }
     spark.read.schema(schema).parquet(s"$src/*/*/*/core.parquet")
@@ -219,7 +223,10 @@ object PrestonUtil extends Serializable {
   def readMergeAndRewriteParquets(src: String)(implicit spark: SparkSession): Unit = {
     val schema = metaSeqToSchema(src)
     val df = readParquets(src, schema)
-    df.persist(StorageLevel.MEMORY_AND_DISK_SER).write.mode(SaveMode.Overwrite).parquet(s"$src/core.parquet")
+    df.persist(StorageLevel.MEMORY_AND_DISK_SER)
+      .write
+      .mode(SaveMode.Overwrite)
+      .parquet(s"$src/core.parquet")
   }
 
 
