@@ -195,30 +195,25 @@ object PrestonUtil extends Serializable {
   }
 
   def writeParquets(src: String, dst: String)(implicit spark: SparkSession): Unit = {
-    val metas = metaSeqToRDD(src).filter(meta => {
-      val parquetPath = createParquetPath(dst, meta)
-      val fs = FileSystem.get(spark.sparkContext.hadoopConfiguration)
-      !fs.exists(new Path(parquetPath))
-    })
+    val metas = metaSeqToRDD(src)
 
     for (meta <- metas.toLocalIterator) {
       val maybeSuccess = Try {
-        val parquetPath = createParquetPath(dst, meta)
-        Console.err.print(s"[${meta.fileURIs.mkString(";")}] loading...")
-        val df = DwC.toDS(meta, meta.fileURIs, spark)
-        df.coalesce(10)
-          .write
-          .parquet(parquetPath)
+        val parquetPath = chopTrailingSlash(dst) + "/" + datasetHashToPath(meta.derivedFrom) + "/core.parquet"
+        val fs = FileSystem.get(spark.sparkContext.hadoopConfiguration)
+        if (!fs.exists(new Path(parquetPath))) {
+          Console.err.print(s"[${meta.fileURIs.mkString(";")}] loading...")
+          val df = DwC.toDS(meta, meta.fileURIs, spark)
+          df.coalesce(10)
+            .write
+            .parquet(parquetPath)
+        }
         Console.err.println(s" done.")
         "OK"
       }
       Console.err.println(s"${meta.derivedFrom}\t${maybeSuccess.getOrElse("ERROR")}")
     }
 
-  }
-
-  private def createParquetPath(dst: String, meta: Meta) = {
-    chopTrailingSlash(dst) + "/" + datasetHashToPath(meta.derivedFrom) + "/core.parquet"
   }
 
   def readParquets(src: String, schema: StructType)(implicit spark: SparkSession): DataFrame = {
