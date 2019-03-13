@@ -84,16 +84,13 @@ object DwC {
 
   def toDS(meta: Meta, files: Seq[String], session: SparkSession): DataFrame = {
     import org.apache.spark.sql.functions.lit
-    Console.err.print(s"[${meta.fileURIs.mkString(";")}] loading...")
     val df = session.read
       .option("delimiter", meta.delimiter)
       .option("quote", meta.quote)
       .option("spark.sql.caseSensitive", "true")
       .schema(meta.schema)
       .csv(files: _*)
-    val exceptHeaders = df.except(df.limit(meta.skipHeaderLines)).withColumn("http://www.w3.org/ns/prov#wasDerivedFrom", lit(meta.derivedFrom))
-    Console.err.println(s" done.")
-    exceptHeaders
+    df.except(df.limit(meta.skipHeaderLines)).withColumn("http://www.w3.org/ns/prov#wasDerivedFrom", lit(meta.derivedFrom))
   }
 
   def readCore(meta: Meta, spark: SparkSession): DataFrame = {

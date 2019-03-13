@@ -199,13 +199,16 @@ object PrestonUtil extends Serializable {
 
     for (meta <- metas.toLocalIterator) {
       val maybeSuccess = Try {
-        val df = DwC.toDS(meta, meta.fileURIs, spark)
         val parquetPath = chopTrailingSlash(dst) + "/" + datasetHashToPath(meta.derivedFrom) + "/core.parquet"
-        df.persist(StorageLevel.MEMORY_AND_DISK_SER)
-          .coalesce(5)
-          .write
-          .mode(SaveMode.Ignore)
-          .parquet(parquetPath)
+        val fs = FileSystem.get(spark.sparkContext.hadoopConfiguration)
+        if (!fs.exists(new Path(parquetPath))) {
+          Console.err.print(s"[${meta.fileURIs.mkString(";")}] loading...")
+          val df = DwC.toDS(meta, meta.fileURIs, spark)
+          df.coalesce(10)
+            .write
+            .parquet(parquetPath)
+        }
+        Console.err.println(s" done.")
         "OK"
       }
       Console.err.println(s"${meta.derivedFrom}\t${maybeSuccess.getOrElse("ERROR")}")
@@ -223,8 +226,7 @@ object PrestonUtil extends Serializable {
   def readMergeAndRewriteParquets(src: String)(implicit spark: SparkSession): Unit = {
     val schema = metaSeqToSchema(src)
     val df = readParquets(src, schema)
-    df.persist(StorageLevel.MEMORY_AND_DISK_SER)
-      .write
+    df.write
       .mode(SaveMode.Overwrite)
       .parquet(s"$src/core.parquet")
   }
