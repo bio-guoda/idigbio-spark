@@ -201,13 +201,32 @@ object PrestonUtil extends Serializable {
       val maybeSuccess = Try {
         val parquetPath = chopTrailingSlash(dst) + "/" + datasetHashToPath(meta.derivedFrom) + "/core.parquet"
         val fs = FileSystem.get(spark.sparkContext.hadoopConfiguration)
-        if (!fs.exists(new Path(parquetPath))) {
+        if (!fs.exists(new Path(parquetPath + "/_SUCCESS"))) {
           Console.err.print(s"[${meta.fileURIs.mkString(";")}] loading...")
           val df = DwC.toDS(meta, meta.fileURIs, spark)
-          df.coalesce(10)
-            .write
+          df.write
             .parquet(parquetPath)
+          Console.err.println(s" done.")
         }
+        "OK"
+      }
+      Console.err.println(s"${meta.derivedFrom}\t${maybeSuccess.getOrElse("ERROR")}")
+    }
+
+  }
+
+  def writeJson(src: String, dst: String)(implicit spark: SparkSession): Unit = {
+    val metas = metaSeqToRDD(src)
+
+    for (meta <- metas.toLocalIterator) {
+      val maybeSuccess = Try {
+        val jsonPath = chopTrailingSlash(dst) + "/core.json"
+        Console.err.print(s"[${meta.fileURIs.mkString(";")}] loading...")
+        val df = DwC.toDS(meta, meta.fileURIs, spark)
+        df.write
+          .mode(SaveMode.Append)
+          .option("compression", "bzip2")
+          .json(jsonPath)
         Console.err.println(s" done.")
         "OK"
       }
@@ -223,9 +242,24 @@ object PrestonUtil extends Serializable {
     spark.read.schema(schema).parquet(s"$src/*/*/*/core.parquet")
   }
 
+  def readJson(src: String, schema: StructType)(implicit spark: SparkSession): DataFrame = {
+    if (!spark.sparkContext.getConf.getBoolean(key = "spark.sql.caseSensitive", defaultValue = false)) {
+      throw new IllegalStateException("please set [spark.sql.caseSensitive=true] to avoid schema merge conflicts")
+    }
+    spark.read.schema(schema).json(s"$src/core.json")
+  }
+
   def readMergeAndRewriteParquets(src: String)(implicit spark: SparkSession): Unit = {
     val schema = metaSeqToSchema(src)
     val df = readParquets(src, schema)
+    df.write
+      .mode(SaveMode.Overwrite)
+      .parquet(s"$src/core.parquet")
+  }
+
+  def readJsonMergeAndRewriteParquets(src: String)(implicit spark: SparkSession): Unit = {
+    val schema = metaSeqToSchema(src)
+    val df = readJson(src, schema)
     df.write
       .mode(SaveMode.Overwrite)
       .parquet(s"$src/core.parquet")
