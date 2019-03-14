@@ -7,7 +7,7 @@ import bio.guoda.DwC
 import bio.guoda.DwC.Meta
 import org.apache.commons.compress.compressors.bzip2.BZip2CompressorOutputStream
 import org.apache.commons.io.IOUtils
-import org.apache.hadoop.fs.{FSDataOutputStream, FileSystem, Path}
+import org.apache.hadoop.fs.{FSDataOutputStream, FileSystem, FileUtil, Path}
 import org.apache.spark.input.PortableDataStream
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.types.{DataTypes, StructField, StructType}
@@ -220,13 +220,17 @@ object PrestonUtil extends Serializable {
 
     for (meta <- metas.toLocalIterator) {
       val maybeSuccess = Try {
-        val jsonPath = chopTrailingSlash(dst) + "/core.json"
+        val baseDir = chopTrailingSlash(dst) + "/" + datasetHashToPath(meta.derivedFrom)
+        val jsonPath = baseDir + "/core-tmp.json"
         Console.err.print(s"[${meta.fileURIs.mkString(";")}] loading...")
         val df = DwC.toDS(meta, meta.fileURIs, spark)
         df.write
-          .mode(SaveMode.Append)
+          .mode(SaveMode.Overwrite)
           .option("compression", "bzip2")
           .json(jsonPath)
+
+        val fs = FileSystem.get(spark.sparkContext.hadoopConfiguration)
+        FileUtil.copyMerge(fs, new Path(jsonPath), fs, new Path(baseDir + "core.json.bz2"), true, spark.sparkContext.hadoopConfiguration, null)
         Console.err.println(s" done.")
         "OK"
       }
