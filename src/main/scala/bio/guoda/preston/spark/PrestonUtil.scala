@@ -230,7 +230,7 @@ object PrestonUtil extends Serializable {
           .json(jsonPath)
 
         val fs = FileSystem.get(spark.sparkContext.hadoopConfiguration)
-        FileUtil.copyMerge(fs, new Path(jsonPath), fs, new Path(baseDir + "core.json.bz2"), true, spark.sparkContext.hadoopConfiguration, null)
+        FileUtil.copyMerge(fs, new Path(jsonPath), fs, new Path(baseDir + "/core.json.bz2"), true, spark.sparkContext.hadoopConfiguration, null)
         Console.err.println(s" done.")
         "OK"
       }

@@ -88,10 +88,10 @@ object DwC {
       .option("delimiter", meta.delimiter)
       .option("quote", meta.quote)
       .option("spark.sql.caseSensitive", "true")
-      .option("header", if (meta.skipHeaderLines > 0) "true" else "false")
       .schema(meta.schema)
       .csv(files: _*)
-    df.withColumn("http://www.w3.org/ns/prov#wasDerivedFrom", lit(meta.derivedFrom))
+    df.except(df.limit(meta.skipHeaderLines))
+      .withColumn("http://www.w3.org/ns/prov#wasDerivedFrom", lit(meta.derivedFrom))
   }
 
   def readCore(meta: Meta, spark: SparkSession): DataFrame = {
