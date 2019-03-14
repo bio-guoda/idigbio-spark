@@ -7,12 +7,11 @@ import bio.guoda.DwC
 import bio.guoda.DwC.Meta
 import org.apache.commons.compress.compressors.bzip2.BZip2CompressorOutputStream
 import org.apache.commons.io.IOUtils
-import org.apache.hadoop.fs.{FSDataOutputStream, FileSystem, FileUtil, Path}
+import org.apache.hadoop.fs.{FSDataOutputStream, FileSystem, Path}
 import org.apache.spark.input.PortableDataStream
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.types.{DataTypes, StructField, StructType}
 import org.apache.spark.sql.{DataFrame, SaveMode, SparkSession}
-import org.apache.spark.storage.StorageLevel
 import org.apache.spark.{SparkConf, SparkContext}
 
 import scala.util.{Failure, Success, Try}
@@ -204,33 +203,10 @@ object PrestonUtil extends Serializable {
         if (!fs.exists(new Path(parquetPath + "/_SUCCESS"))) {
           Console.err.print(s"[${meta.fileURIs.mkString(";")}] loading...")
           val df = DwC.toDS(meta, meta.fileURIs, spark)
-          df.write
+          // densely pack parquet files at expensive of parallelism and locality
+          df.coalesce(1)
+            .write
             .parquet(parquetPath)
-          Console.err.println(s" done.")
-        }
-        "OK"
-      }
-      Console.err.println(s"${meta.derivedFrom}\t${maybeSuccess.getOrElse("ERROR")}")
-    }
-
-  }
-
-  def writeAvro(src: String, dst: String)(implicit spark: SparkSession): Unit = {
-    import com.databricks.spark.avro._
-    val metas = metaSeqToRDD(src)
-
-    // submit one job per meta for now
-    for (meta <- metas.toLocalIterator) {
-      val maybeSuccess = Try {
-        val baseDir = chopTrailingSlash(dst) + "/" + datasetHashToPath(meta.derivedFrom)
-        val jsonPath = baseDir + "/core.avro"
-        val fs = FileSystem.get(spark.sparkContext.hadoopConfiguration)
-        if (!fs.exists(new Path(jsonPath + "/_SUCCESS"))) {
-          Console.err.print(s"[${meta.fileURIs.mkString(";")}] loading...")
-          val df = DwC.toDS(meta, meta.fileURIs, spark)
-          df.write
-            .mode(SaveMode.Overwrite)
-            .avro(jsonPath)
           Console.err.println(s" done.")
         }
         "OK"
@@ -247,13 +223,6 @@ object PrestonUtil extends Serializable {
     spark.read.schema(schema).parquet(s"$src/*/*/*/core.parquet")
   }
 
-  def readAvro(src: String, schema: StructType)(implicit spark: SparkSession): DataFrame = {
-    if (!spark.sparkContext.getConf.getBoolean(key = "spark.sql.caseSensitive", defaultValue = false)) {
-      throw new IllegalStateException("please set [spark.sql.caseSensitive=true] to avoid schema merge conflicts")
-    }
-    spark.read.schema(schema).json(s"$src/*/*/*/core.avro")
-  }
-
   def readMergeAndRewriteParquets(src: String)(implicit spark: SparkSession): Unit = {
     val schema = metaSeqToSchema(src)
     val df = readParquets(src, schema)
@@ -261,14 +230,5 @@ object PrestonUtil extends Serializable {
       .mode(SaveMode.Overwrite)
       .parquet(s"$src/core.parquet")
   }
-
-  def readAvroMergeAndRewriteParquets(src: String)(implicit spark: SparkSession): Unit = {
-    val schema = metaSeqToSchema(src)
-    val df = readAvro(src, schema)
-    df.write
-      .mode(SaveMode.Overwrite)
-      .parquet(s"$src/core.parquet")
-  }
-
 
 }
