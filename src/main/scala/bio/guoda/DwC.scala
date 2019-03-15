@@ -87,6 +87,7 @@ object DwC {
     val df = session.read
       .option("delimiter", meta.delimiter)
       .option("quote", meta.quote)
+      .option("escape", "\"")
       .option("spark.sql.caseSensitive", "true")
       .schema(meta.schema)
       .csv(files: _*)

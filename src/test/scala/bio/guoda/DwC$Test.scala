@@ -74,4 +74,12 @@ class DwC$Test extends FlatSpec with Matchers {
     new File(filepathURI).exists should be(true)    
   }
 
+  "occurrence reader inaturalist" should "define a quote character" in {
+    val metaOption = DwC.readMeta(getClass.getResource("/inaturalist/meta.xml").toURI)
+    val meta = metaOption.getOrElse(fail("kaboom!"))
+    val filepathURI = new URI(meta.fileURIs.head)
+    new File(filepathURI).exists should be(true)
+    meta.quote should be("\"")
+  }
+
 }
