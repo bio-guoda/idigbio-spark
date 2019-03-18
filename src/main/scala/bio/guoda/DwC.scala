@@ -40,7 +40,7 @@ object DwC {
 
     val locations = (meta \\ "core" \\ "location").map(_.text)
 
-    val schema = StructType(paddedFieldTerms map {
+    val schema = StructType((paddedFieldTerms ++ Seq("bad_record")) map {
       StructField(_, StringType)
     })
     Some(Meta(schema, delimiter, quote, locations, skipHeaderLines))
@@ -88,6 +88,8 @@ object DwC {
       .option("delimiter", meta.delimiter)
       .option("quote", meta.quote)
       .option("escape", "\"")
+      .option("mode", "PERMISSIVE")
+      .option("columnNameOfCorruptRecord", "bad_record")
       .option("spark.sql.caseSensitive", "true")
       .schema(meta.schema)
       .csv(files: _*)
