@@ -15,7 +15,7 @@ class DwC$Test extends FlatSpec with Matchers {
         meta.delimiter should be("""\t""")
         meta.quote should be(null)
         meta.skipHeaderLines should be(1)
-        meta.schema.size should be(224)
+        meta.schema.size should be(224 + 1)
         meta.schema.fieldNames should contain("http://rs.tdwg.org/dwc/terms/genus")
         meta.schema.fields.count(_.nullable) should be(meta.schema.size)
         meta.fileURIs.size should be(1)
@@ -36,7 +36,7 @@ class DwC$Test extends FlatSpec with Matchers {
         meta.delimiter should be("""\t""")
         meta.quote should be(null)
         meta.skipHeaderLines should be(1)
-        meta.schema.size should be(224)
+        meta.schema.size should be(224 + 1)
         meta.schema.fieldNames should contain("http://rs.tdwg.org/dwc/terms/genus")
         meta.fileURIs.size should be(1)
         meta.fileURIs shouldBe List(URI.create("hdfs:///some/path/occurrence.txt").toString)
@@ -54,7 +54,7 @@ class DwC$Test extends FlatSpec with Matchers {
       case Some(meta) => {
         meta.schema.fieldNames should contain("http://rs.tdwg.org/dwc/terms/%20identificationQualifier")
         meta.schema.fieldNames should contain("http://rs.tdwg.org/dwc/terms/identificationQualifier")
-        meta.schema.size should be(186)
+        meta.schema.size should be(186 + 1)
         meta.schema.fieldNames should contain("undefined0")
       }
       case None => fail("expected some meta")
