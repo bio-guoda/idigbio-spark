@@ -203,7 +203,7 @@ object PrestonUtil extends Serializable {
         if (!fs.exists(new Path(parquetPath + "/_SUCCESS"))) {
           Console.err.print(s"[${meta.fileURIs.mkString(";")}] loading...")
           val df = DwC.toDS(meta, meta.fileURIs, spark)
-          // densely pack parquet files at expensive of parallelism and locality
+          // densely pack parquet files at expense of parallelism and locality
           df.coalesce(1)
             .write
             .parquet(parquetPath)
