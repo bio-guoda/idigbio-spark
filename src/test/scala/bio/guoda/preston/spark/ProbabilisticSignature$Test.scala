@@ -4,7 +4,9 @@ import org.scalatest._
 
 import scala.io.Source
 
-class ProbSignature$Test extends FlatSpec with Matchers with ConnectedComponents {
+class ProbabilisticSignature$Test extends FlatSpec
+  with Matchers
+  with ProbabilisticSignatures {
 
   def generateRecords5gram(records: List[String]): Seq[String] = {
     generateRecordsNgram(records, 5)
@@ -14,7 +16,6 @@ class ProbSignature$Test extends FlatSpec with Matchers with ConnectedComponents
     generateRecordsNgram(records, 3)
   }
 
-  val nonAlphaNumeric = "[^a-zA-Z\\d\\:\\-_\\\\/\\.]"
 
   def generateRecordsNgram(records: List[String], n: Integer = 3): Seq[String] = {
     records.mkString(" ").sliding(n).map(_.mkString("").toLowerCase).filter(_.matches("^[a-zA-Z\\d]*$")).toSeq.distinct
@@ -22,10 +23,6 @@ class ProbSignature$Test extends FlatSpec with Matchers with ConnectedComponents
 
   def subRecordsFromWords(records: List[String]): Seq[String] = {
     records.mkString(" ").split(nonAlphaNumeric).toSeq.distinct
-  }
-
-  def subRecordsFromUUIDsWords(records: List[String]): Seq[String] = {
-    records.mkString(" ").split(nonAlphaNumeric).filter(_.contains("-")).toSeq.distinct
   }
 
   "split words" should "be suitable" in {
@@ -95,28 +92,6 @@ class ProbSignature$Test extends FlatSpec with Matchers with ConnectedComponents
     some.reverse.head._2 should be(0.99 +- 0.01)
   }
 
-  "connected components" should "be generated from a record from actual records" in {
-
-    val source1 = Source.fromInputStream(getClass.getResourceAsStream("/gbif/occurrence.txt"))
-    val source2 = Source.fromInputStream(getClass.getResourceAsStream("/idigbio/occurrence.txt"))
-    val recordsAll = (source1.getLines() ++ source2.getLines()).toList
-    val a = 1.5
-    val b = 0.3
-
-
-    val some = calculatePairSharedSigProb(recordsAll, a, b, subRecordsFromUUIDsWords)
-
-    val linkedRecords = some.filter(_._2 > 0.9).map(_._1)
-
-    val connectedComponents = towardsSingleParentConnectedComponents(linkedRecords)
-
-    connectedComponents.groupBy(_._1).map(_._2.flatMap(x => List(x._1, x._2)).distinct).foreach(r => {
-      r.foreach(println)
-      println("---")
-    })
-
-  }
-
   "an inverted index 5-grams" should "be generated from a record from actual records" in {
 
     val source = Source.fromInputStream(getClass.getResourceAsStream("/gbif/occurrence.txt"))
@@ -179,59 +154,5 @@ class ProbSignature$Test extends FlatSpec with Matchers with ConnectedComponents
     independentSubRecords should be(List("one two"))
   }
 
-  case class SignaturePair(rpair: (String, String), sr: String, ps: Double)
 
-  private def calculatePairSharedSigProb(recordsAll: List[String],
-                                         a: Double,
-                                         b: Double,
-                                         generateSubRecords: List[String] => Seq[String]) = {
-
-    val subrecords = generateSubRecords(recordsAll)
-
-    val subrecordsTrimmed = excludeSubSubRecords(subrecords)
-
-    val recordSetForSubRecords = subrecordsTrimmed.map(sr => (sr, recordsAll.filter(r => generateSubRecords(List(r)).contains(sr))))
-
-    val tuples = recordSetForSubRecords.flatMap(s => {
-      val subrecord = s._1
-      pairwiseRecords(s._2)
-        .map(pair => SignaturePair(pair, subrecord, probabilitySubrecord(a, b, s._2.length)))
-    })
-
-    // removed subrecords that are part of other subrecords
-
-
-    val byPairs: Iterable[Seq[SignaturePair]] = tuples.groupBy(_.rpair)
-      .values
-
-
-    byPairs
-      .map(e => (e.head.rpair, e.foldLeft(1.0)((agg, t) => agg * (1.0 - t.ps))))
-      .map(t => (t._1, 1.0 - t._2)).toSeq.sortBy(_._2)
-
-  }
-
-  private def excludeSubSubRecords(subrecords: Seq[String]) = {
-    val excludedSubrecords = for (
-      s1 <- subrecords.zipWithIndex;
-      s2 <- subrecords.zipWithIndex
-      if s1._2 < s2._2
-      if s1._1.split(nonAlphaNumeric).contains(s2._1))
-      yield s2._1
-
-    excludedSubrecords.foreach(println)
-
-    subrecords.filterNot(excludedSubrecords.contains(_))
-  }
-
-  private def pairwiseRecords(records: List[String]) = {
-    for (
-      r1 <- records.zipWithIndex;
-      r2 <- records.zipWithIndex
-      if r1._2 > r2._2) yield (r1._1, r2._1)
-  }
-
-  private def probabilitySubrecord(a: Double, b: Double, length: Int) = {
-    1 / (1 + Math.pow(a, length) * b)
-  }
 }
