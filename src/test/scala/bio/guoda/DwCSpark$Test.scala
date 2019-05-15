@@ -1,6 +1,5 @@
 package bio.guoda
 
-import bio.guoda.preston.spark.TestSparkContext
 import org.apache.spark.sql.SparkSession
 
 
