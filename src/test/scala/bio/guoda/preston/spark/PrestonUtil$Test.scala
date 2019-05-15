@@ -10,6 +10,7 @@ import org.apache.commons.compress.compressors.bzip2.BZip2CompressorInputStream
 import org.apache.commons.io.FileUtils
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.Path
+import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.types.{DataTypes, StructField, StructType}
@@ -47,7 +48,7 @@ class PrestonUtil$Test extends TestSparkContext {
     }
 
     implicit val spark: SparkSession = SparkSession.builder().config(conf).getOrCreate()
-    implicit val config: Map[String, String] = PrestonUtil.hadoopConfToMap(spark.sparkContext.hadoopConfiguration)
+    implicit val config: Broadcast[Map[String, String]] = spark.sparkContext.broadcast(PrestonUtil.hadoopConfToMap(spark.sparkContext.hadoopConfiguration))
     val tuples = PrestonUtil.unzip(("file.zip", getClass.getResourceAsStream("/gbif/gbif-test.zip")), PrestonUtil.handleEntry, testOutputPath)
 
     val expectedMetaFile = new File(file, "meta.xml.bz2")
@@ -84,6 +85,26 @@ class PrestonUtil$Test extends TestSparkContext {
 
     val baseOutputDir = new File(URI.create(tmpDir.toURI.toString + "d8/5a/d85a59e9011e586fe865e963a9b6465e11a10e26ed85bf36b7707ea0dbfcadc1"))
     new File(baseOutputDir, "occurrence.txt.bz2").exists() should be(true)
+    new File(baseOutputDir, "meta.xml.bz2").exists() should be(true)
+
+    FileUtils.deleteDirectory(tmpDir)
+  }
+
+ "export a valid zip with root entries" should "produce a valid output" in {
+    implicit val spark: SparkSession = SparkSession.builder().config(conf).getOrCreate()
+
+    val url = getClass.getResource("/valid/12/02/12027356ed3a72465ccf9f49f2a22be2e78c03876a20d97e81dd221b3459add8")
+
+    val prestonDataDir = new File(url.toURI).getParentFile.getParentFile.getParentFile
+    prestonDataDir.toString should endWith("valid")
+
+    val tmpDir = createTmpDir
+
+    PrestonUtil.unzip(prestonDataDir.getAbsolutePath, tmpDir.getAbsolutePath)
+
+    val baseOutputDir = new File(URI.create(tmpDir.toURI.toString + "12/02/12027356ed3a72465ccf9f49f2a22be2e78c03876a20d97e81dd221b3459add8"))
+    new File(baseOutputDir, "occurrence.txt.bz2").exists() should be(true)
+    new File(baseOutputDir, "eml.xml.bz2").exists() should be(true)
     new File(baseOutputDir, "meta.xml.bz2").exists() should be(true)
 
     FileUtils.deleteDirectory(tmpDir)

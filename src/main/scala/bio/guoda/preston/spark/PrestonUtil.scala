@@ -9,6 +9,7 @@ import org.apache.commons.compress.compressors.bzip2.BZip2CompressorOutputStream
 import org.apache.commons.io.IOUtils
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.{FSDataOutputStream, FileSystem, Path}
+import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.input.PortableDataStream
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.types.{DataTypes, StructField, StructType}
@@ -29,8 +30,7 @@ object PrestonUtil extends Serializable {
 
   def unzip(fileAndStream: (String, InputStream),
             entryHandler: (InputStream, Path) => Try[String],
-            outputPathFor: (String, String) => Path)
-           (implicit spark: SparkSession): Iterator[(String, Try[String])] = {
+            outputPathFor: (String, String) => Path): Iterator[(String, Try[String])] = {
     Try {
       val is = new ZipInputStream(fileAndStream._2)
       Iterator
@@ -42,7 +42,11 @@ object PrestonUtil extends Serializable {
           }
         })
         .map { entry =>
-          val path = outputPathFor(fileAndStream._1, entry.getName)
+          val entryName = entry.getName match {
+            case name if name.startsWith("/") => name.substring(1, name.length)
+            case name => name
+          }
+          val path = outputPathFor(fileAndStream._1, entryName)
           (fileAndStream._1, entryHandler(is, path))
         }
     } match {
@@ -51,10 +55,10 @@ object PrestonUtil extends Serializable {
     }
   }
 
-  def handleEntry(is: InputStream, outputPath: Path)(implicit hadoopConfiguration: Map[String, String]): Try[String] = {
+  def handleEntry(is: InputStream, outputPath: Path)(implicit hadoopConfiguration: Broadcast[Map[String, String]]): Try[String] = {
     Try {
       val conf = new Configuration()
-      hadoopConfiguration.foreach(keyValue => conf.set(keyValue._1, keyValue._2))
+      hadoopConfiguration.value.foreach(keyValue => conf.set(keyValue._1, keyValue._2))
       val fs = FileSystem.get(conf)
 
       var dos: FSDataOutputStream = null
@@ -76,7 +80,7 @@ object PrestonUtil extends Serializable {
 
   def saferUnzip(fileAndStream: (String, PortableDataStream),
                  entryHandler: (InputStream, Path) => Try[String],
-                 outputPathGen: (String, String) => Path)(implicit spark: SparkSession): Iterator[(String, Try[String])] = {
+                 outputPathGen: (String, String) => Path): Iterator[(String, Try[String])] = {
     val iterator = unzip((fileAndStream._1, fileAndStream._2.open()), entryHandler, outputPathGen)
 
     new Iterator[(String, Try[String])] {
@@ -102,9 +106,7 @@ object PrestonUtil extends Serializable {
     }
 
     implicit val conf: Configuration = spark.sparkContext.hadoopConfiguration
-
-
-    implicit val config: Map[String, String] = hadoopConfToMap(conf)
+    implicit val config: Broadcast[Map[String, String]] = spark.sparkContext.broadcast(hadoopConfToMap(conf))
 
     binaryFiles.flatMap(x => {
       Try {
