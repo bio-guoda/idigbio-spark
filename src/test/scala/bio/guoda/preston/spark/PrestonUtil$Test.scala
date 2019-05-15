@@ -4,8 +4,8 @@ import java.io.{File, FileInputStream, InputStream}
 import java.net.URI
 import java.nio.file.{Files, Paths}
 
+import bio.guoda.TestSparkContext
 import bio.guoda.preston.spark.PrestonUtil.{metaSeqToSchema, readParquets}
-import com.holdenkarau.spark.testing.SharedSparkContext
 import org.apache.commons.compress.compressors.bzip2.BZip2CompressorInputStream
 import org.apache.commons.io.FileUtils
 import org.apache.hadoop.fs.Path
@@ -18,20 +18,7 @@ import org.scalatest._
 import scala.io.Source
 import scala.util.{Success, Try}
 
-trait TestSparkContext extends FlatSpec with Matchers with BeforeAndAfter with SharedSparkContext {
-
-  override val conf = new SparkConf().
-    setMaster("local[*]").
-    setAppName("test").
-    set("spark.debug.maxToStringFields", "250"). // see https://issues.apache.org/jira/browse/SPARK-15794
-    set("spark.ui.enabled", "false").
-    set("spark.sql.caseSensitive", "true").
-    set("spark.app.id", appID)
-}
-
 class PrestonUtil$Test extends TestSparkContext {
-
-  override implicit def reuseContextIfPossible: Boolean = false
 
   "output path generate" should "provide a path" in {
     val input = new Path("file:///some/one/two/file")

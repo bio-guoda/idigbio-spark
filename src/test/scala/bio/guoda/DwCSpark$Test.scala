@@ -7,7 +7,7 @@ import org.apache.spark.sql.SparkSession
 
 class DwCSpark$Test extends TestSparkContext {
 
-  override implicit def reuseContextIfPossible: Boolean = true
+  override implicit def reuseContextIfPossible: Boolean = false
 
   "a meta.xml" should "help create a dataset with defined schema" in {
     implicit val spark: SparkSession = SparkSession.builder().config(conf).getOrCreate()

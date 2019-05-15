@@ -2,6 +2,7 @@ import java.io.{File, IOException}
 
 import OccurrenceCollectionBuilder._
 import au.com.bytecode.opencsv.CSVParser
+import bio.guoda.TestSparkContext
 import com.holdenkarau.spark.testing.SharedSparkContext
 import org.apache.commons.io.FileUtils
 import org.apache.spark.SparkConf
@@ -12,20 +13,7 @@ import org.effechecka.selector.OccurrenceSelector
 import org.scalatest._
 import org.scalatest.OptionValues._
 
-trait TestSparkContext extends FlatSpec with Matchers with BeforeAndAfter with SharedSparkContext {
-
-  override val conf = new SparkConf().
-    setMaster("local[*]").
-    setAppName("test").
-    set("spark.debug.maxToStringFields", "250"). // see https://issues.apache.org/jira/browse/SPARK-15794
-    set("spark.ui.enabled", "false").
-    set("spark.app.id", appID)
-
-
-}
-
 class SparkJobs$Test extends TestSparkContext with DwCSparkHandler {
-  override implicit def reuseContextIfPossible: Boolean = true
 
   "combining header and rows" should "create a record map" in {
     val header = new CSVParser().parseLine(traitHeader)
