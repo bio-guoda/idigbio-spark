@@ -150,7 +150,7 @@ object PrestonUtil extends Serializable {
 
   // take unpacked darwin core archives and generate sequence files for eml.xml and meta.xml
   // using dataset sha256 hashes as keys.
-  def dwcToSeqs(src: String, dest: String)(implicit spark: SparkSession): Unit = {
+  def dwcaToSeqs(src: String, dest: String)(implicit spark: SparkSession): Unit = {
     val nonEmptyPatterns = partitionedArchivePaths(src)
     implicit val ctx: SparkContext = spark.sparkContext
 
@@ -193,6 +193,11 @@ object PrestonUtil extends Serializable {
     if (src.endsWith("/")) src.slice(0, src.length - 1) else src
   }
 
+  // take compressed text files extracted from dwca and turn them into parquets
+  def dwcaToParquets(src: String, dst: String)(implicit spark: SparkSession): Unit = {
+    writeParquets(src, dst)
+  }
+
   def writeParquets(src: String, dst: String)(implicit spark: SparkSession): Unit = {
     val metas = metaSeqToRDD(src)
 
@@ -220,7 +225,7 @@ object PrestonUtil extends Serializable {
     if (!spark.sparkContext.getConf.getBoolean(key = "spark.sql.caseSensitive", defaultValue = false)) {
       throw new IllegalStateException("please set [spark.sql.caseSensitive=true] to avoid schema merge conflicts")
     }
-    spark.read.schema(schema).parquet(s"$src/*/*/*/core.parquet")
+    spark.read.schema(schema).parquet(s"$src/*/*/core.parquet")
   }
 
   def readMergeAndRewriteParquets(src: String)(implicit spark: SparkSession): Unit = {
@@ -229,6 +234,46 @@ object PrestonUtil extends Serializable {
     df.write
       .mode(SaveMode.Overwrite)
       .parquet(s"$src/core.parquet")
+  }
+
+
+  case class PrestonDwCConf(srcDir: String = "hdfs:///guoda/data/source=preston/data",
+                            targetDir: String = "hdfs:///guoda/data/source=preston/dwca")
+
+
+  def main(args: Array[String]) {
+    config(args) match {
+      case Some(c) =>
+        val conf = new SparkConf()
+          .setAppName("preston2spark")
+          .set("spark.sql.caseSensitive", "true")
+        implicit val spark: SparkSession = SparkSession.builder().config(conf).getOrCreate()
+        unzip(c.srcDir, c.targetDir)
+        dwcaToSeqs(c.targetDir, c.targetDir)
+        dwcaToParquets(c.targetDir, c.targetDir)
+        readMergeAndRewriteParquets(c.targetDir)
+      case _ =>
+    }
+  }
+
+  def config(args: Array[String]): Option[PrestonDwCConf] = {
+
+    def splitAndClean(arg: String): Seq[String] = {
+      arg.trim.split( """[\|,]""").toSeq.filter(_.nonEmpty)
+    }
+
+    val parser = new scopt.OptionParser[PrestonDwCConf]("preston4dwca") {
+      head("preston4dwca", "0.x")
+      arg[String]("<source dir>") optional() action { (x, c) =>
+        c.copy(srcDir = x.trim)
+      } text "source directory containing preston objects"
+      arg[String]("<target dir>") optional() action { (x, c) =>
+        c.copy(targetDir = x.trim)
+      } text "target directory for storing DwC-A objects extracted from archives"
+
+    }
+
+    parser.parse(args, PrestonDwCConf())
   }
 
 }
