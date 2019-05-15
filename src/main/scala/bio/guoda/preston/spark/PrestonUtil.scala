@@ -7,6 +7,7 @@ import bio.guoda.DwC
 import bio.guoda.DwC.Meta
 import org.apache.commons.compress.compressors.bzip2.BZip2CompressorOutputStream
 import org.apache.commons.io.IOUtils
+import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.{FSDataOutputStream, FileSystem, Path}
 import org.apache.spark.input.PortableDataStream
 import org.apache.spark.rdd.RDD
@@ -50,9 +51,11 @@ object PrestonUtil extends Serializable {
     }
   }
 
-  def handleEntry(is: InputStream, outputPath: Path)(implicit conf: SparkConf): Try[String] = {
+  def handleEntry(is: InputStream, outputPath: Path)(implicit hadoopConfiguration: Map[String, String]): Try[String] = {
     Try {
-      val fs = FileSystem.get(SparkSession.builder().config(conf).getOrCreate().sparkContext.hadoopConfiguration)
+      val conf = new Configuration()
+      hadoopConfiguration.foreach(keyValue => conf.set(keyValue._1, keyValue._2))
+      val fs = FileSystem.get(conf)
 
       var dos: FSDataOutputStream = null
       try {
@@ -83,6 +86,11 @@ object PrestonUtil extends Serializable {
     }
   }
 
+  def hadoopConfToMap(hadoopConf: Configuration): Map[String, String] = {
+    import scala.collection.JavaConversions._
+    hadoopConf.iterator().toList.map(x => (x.getKey, x.getValue)).toMap
+  }
+
   def unzipTo(paths: Seq[String], dst: String)(implicit spark: SparkSession): RDD[(String, Try[String])] = {
 
     val binaryFilesSeq = paths.map(path => spark.sparkContext.binaryFiles(path))
@@ -93,7 +101,10 @@ object PrestonUtil extends Serializable {
       bz2PathForName(name, new Path(src), new Path(dst))
     }
 
-    implicit val conf: SparkConf = spark.sparkContext.getConf
+    implicit val conf: Configuration = spark.sparkContext.hadoopConfiguration
+
+
+    implicit val config: Map[String, String] = hadoopConfToMap(conf)
 
     binaryFiles.flatMap(x => {
       Try {

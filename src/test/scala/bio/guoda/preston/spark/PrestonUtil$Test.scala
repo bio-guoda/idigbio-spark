@@ -8,6 +8,7 @@ import bio.guoda.TestSparkContext
 import bio.guoda.preston.spark.PrestonUtil.{metaSeqToSchema, readParquets}
 import org.apache.commons.compress.compressors.bzip2.BZip2CompressorInputStream
 import org.apache.commons.io.FileUtils
+import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.Path
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.SparkSession
@@ -46,7 +47,7 @@ class PrestonUtil$Test extends TestSparkContext {
     }
 
     implicit val spark: SparkSession = SparkSession.builder().config(conf).getOrCreate()
-    implicit val config: SparkConf = spark.sparkContext.getConf
+    implicit val config: Map[String, String] = PrestonUtil.hadoopConfToMap(spark.sparkContext.hadoopConfiguration)
     val tuples = PrestonUtil.unzip(("file.zip", getClass.getResourceAsStream("/gbif/gbif-test.zip")), PrestonUtil.handleEntry, testOutputPath)
 
     val expectedMetaFile = new File(file, "meta.xml.bz2")
