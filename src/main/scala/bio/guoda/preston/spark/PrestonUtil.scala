@@ -225,7 +225,7 @@ object PrestonUtil extends Serializable {
     if (!spark.sparkContext.getConf.getBoolean(key = "spark.sql.caseSensitive", defaultValue = false)) {
       throw new IllegalStateException("please set [spark.sql.caseSensitive=true] to avoid schema merge conflicts")
     }
-    spark.read.schema(schema).parquet(s"$src/*/*/core.parquet")
+    spark.read.schema(schema).parquet(s"$src/*/*/*/core.parquet")
   }
 
   def readMergeAndRewriteParquets(src: String)(implicit spark: SparkSession): Unit = {
