@@ -52,7 +52,7 @@ object PrestonUtil extends Serializable {
 
   def handleEntry(is: InputStream, outputPath: Path)(implicit conf: SparkConf): Try[String] = {
     Try {
-      val fs = FileSystem.get(SparkSession.builder().config(conf).getOrCreate().sparkContext.hadoopConfiguration)
+      val fs = FileSystem.get(SparkSession.builder().getOrCreate().sparkContext.hadoopConfiguration)
 
       var dos: FSDataOutputStream = null
       try {
@@ -136,6 +136,7 @@ object PrestonUtil extends Serializable {
 
   // unpack zipfiles to bz2 files to facilitate for parallel processing
   def unzip(src: String, dst: String)(implicit spark: SparkSession): Unit = {
+    Console.err.print("building path partitions...")
     val nonEmptyPatterns = partitionedArchivePaths(src)
     val unzipAttempts = unzipTo(nonEmptyPatterns, dst)
 
