@@ -2,9 +2,12 @@ package bio.guoda
 
 import com.holdenkarau.spark.testing.SharedSparkContext
 import org.apache.spark.SparkConf
+import org.apache.spark.sql.{SQLContext, SparkSession}
 import org.scalatest.{BeforeAndAfter, FlatSpec, Matchers}
 
 trait TestSparkContext extends FlatSpec with Matchers with BeforeAndAfter with SharedSparkContext {
+
+  def sparkSession: SparkSession = new SQLContext(sc).sparkSession
 
   override implicit def reuseContextIfPossible: Boolean = true
 
@@ -15,6 +18,4 @@ trait TestSparkContext extends FlatSpec with Matchers with BeforeAndAfter with S
     set("spark.ui.enabled", "false").
     set("spark.sql.caseSensitive", "true").
     set("spark.app.id", appID)
-
-
 }

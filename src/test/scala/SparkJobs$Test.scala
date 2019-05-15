@@ -269,11 +269,11 @@ class SparkJobs$Test extends TestSparkContext with DwCSparkHandler {
   }
 
   def readDwCNoSource: Seq[(String, DataFrame)] = {
-    val sqlContext = SparkSession.builder().config(sc.getConf).getOrCreate()
+    val spark = sparkSession
     val metas = List("/gbif/meta.xml", "/idigbio/meta.xml") map {
       getClass.getResource
     }
-    toDF2(sqlContext, metas map {
+    toDF2(spark, metas map {
       _.toString
     })
   }

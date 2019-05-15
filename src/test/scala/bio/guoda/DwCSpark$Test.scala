@@ -1,15 +1,11 @@
 package bio.guoda
 
-import org.apache.spark.sql.SparkSession
-
 
 
 class DwCSpark$Test extends TestSparkContext {
 
-  override implicit def reuseContextIfPossible: Boolean = false
-
   "a meta.xml" should "help create a dataset with defined schema" in {
-    implicit val spark: SparkSession = SparkSession.builder().config(conf).getOrCreate()
+    val spark = sparkSession
     val metaOption = DwC.readMeta(getClass.getResource("/inaturalist/meta.xml").toURI)
     val ds = DwC.toDS(metaOption.get, metaOption.get.fileURIs, spark)
     import spark.implicits._
@@ -25,7 +21,7 @@ class DwCSpark$Test extends TestSparkContext {
   }
 
   "bad records" should "be stored in a separate column" in {
-    implicit val spark: SparkSession = SparkSession.builder().config(conf).getOrCreate()
+    val spark = sparkSession
     val metaOption = DwC.readMeta(getClass.getResource("/badrecord/meta.xml").toURI)
     val ds = DwC.toDS(metaOption.get, metaOption.get.fileURIs, spark)
     import spark.implicits._
