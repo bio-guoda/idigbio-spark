@@ -52,7 +52,7 @@ object PrestonUtil extends Serializable {
 
   def handleEntry(is: InputStream, outputPath: Path)(implicit conf: SparkConf): Try[String] = {
     Try {
-      val fs = FileSystem.get(SparkSession.builder().getOrCreate().sparkContext.hadoopConfiguration)
+      val fs = FileSystem.get(SparkSession.builder().config(conf).getOrCreate().sparkContext.hadoopConfiguration)
 
       var dos: FSDataOutputStream = null
       try {
