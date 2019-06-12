@@ -1,8 +1,8 @@
 language: scala
 scala:
-- 2.11.8
+- 2.11.11
 sudo: false
-after_success: "sbt assembly"
+after_success: "sbt ++$TRAVIS_SCALA_VERSION assembly"
 cache:
   directories:
   - "$HOME/.ivy2"
