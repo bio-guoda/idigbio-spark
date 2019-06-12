@@ -1,7 +1,7 @@
 # idigbio-spark
 Generate taxonomic checklists and occurrence collections from biodiversity collections like GBIF, iDigBio.
 
-This library relies on an [apache spark](https://spark.apache.org) and an Cassandra clusters to:
+This library relies on an [apache spark](https://spark.apache.org) and Mesos/HDFS clusters to:
 
 1. generate checklists
 2. generate occurrence collection
