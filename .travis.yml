@@ -2,7 +2,7 @@ language: scala
 scala:
 - 2.11.12
 jdk:
-  - oraclejdk11
+  - openjdk8
 sudo: false
 after_success: "sbt ++$TRAVIS_SCALA_VERSION assembly"
 cache:
