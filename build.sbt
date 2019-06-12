@@ -2,7 +2,7 @@ name := "iDigBio-LD"
 
 version := "1.5.9"
 
-scalaVersion := "2.11.11"
+scalaVersion := "2.11.12"
 
 val sparkV: String = "2.2.3"
 
