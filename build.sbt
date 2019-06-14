@@ -1,4 +1,4 @@
-name := "iDigBio-LD"
+name := "idigbio-spark"
 
 version := "1.5.9"
 
