@@ -243,8 +243,9 @@ object PrestonUtil extends Serializable {
 
   def readMergeAndRewriteParquets(src: String)(implicit spark: SparkSession): Unit = {
     val schema = metaSeqToSchema(src)
-    val df = readParquets(src, schema)
-    df.write
+    readParquets(src, schema)
+      .coalesce(200)
+      .write
       .mode(SaveMode.Overwrite)
       .parquet(s"$src/core.parquet")
   }
