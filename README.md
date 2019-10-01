@@ -1,5 +1,7 @@
+[![Build Status](https://travis-ci.org/bio-guoda/idigbio-spark.svg?branch=master)](https://travis-ci.org/bio-guoda/idigbio-spark)
+
 # idigbio-spark
-Generate taxonomic checklists and occurrence collections from biodiversity collections like GBIF, iDigBio.
+Generate taxonomic checklists and occurrence collections from biodiversity collections like GBIF, iDigBio. Converts DwCA tracked by [Preston](https://preston.guoda.bio) into parquet and sequence files to enable parallel processing in a compute cluster.
 
 This library relies on an [apache spark](https://spark.apache.org) and Mesos/HDFS clusters to:
 
